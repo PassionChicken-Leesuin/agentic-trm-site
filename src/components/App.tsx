@@ -1,0 +1,84 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import Landing from "./Landing";
+import Frame from "./Frame";
+import TopNav from "./TopNav";
+import ScrollProgress from "./ScrollProgress";
+import Upload from "./Upload";
+import Build, { type Source } from "./Build";
+import Cards, { type Card } from "./Cards";
+import RoadmapView, { type Roadmaps } from "./RoadmapView";
+import { isStage, type Stage } from "./views";
+import { DEFAULT_RUN, loadEvents, loadJSON, loadMeta, serverAvailable, type Meta } from "@/lib/data";
+
+/** 깊은 링크: ?stage=upload|build|cards|roadmap (시연·점검용). build 는 아래 효과에서 준비된 문서로 시작한다. */
+function stageFromUrl(): Stage {
+  if (typeof window === "undefined") return "gate";
+  const q = new URLSearchParams(window.location.search).get("stage");
+  return isStage(q) && q !== "build" ? q : "gate";
+}
+
+export default function App() {
+  const [stage, setStage] = useState<Stage>(stageFromUrl);
+  const [reached, setReached] = useState<Set<Stage>>(() => (stageFromUrl() === "gate" ? new Set<Stage>(["upload"]) : new Set<Stage>(["upload", "build", "cards", "roadmap"])));
+  const [meta, setMeta] = useState<Meta | null>(null);
+  const [serverOk, setServerOk] = useState(false);
+  const [source, setSource] = useState<Source | null>(null);
+  const [cards, setCards] = useState<Card[]>([]);
+  const [roadmaps, setRoadmaps] = useState<Roadmaps | null>(null);
+
+  const go = useCallback((s: Stage) => {
+    setReached((r) => new Set([...r, s]));
+    setStage(s);
+    window.history.pushState({ stage: s }, "", window.location.href);
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }, []);
+
+  const startPrepared = useCallback(async () => {
+    const events = await loadEvents(DEFAULT_RUN);
+    setSource({ kind: "static", events });
+    setReached((r) => new Set([...r, "upload", "build"]));
+    go("build");
+  }, [go]);
+
+  useEffect(() => {
+    loadMeta().then(setMeta).catch(() => setMeta(null));
+    serverAvailable().then(setServerOk);
+    loadJSON<Card[]>(DEFAULT_RUN, "cards.json").then((c) => c && setCards(c));
+    loadJSON<Roadmaps>(DEFAULT_RUN, "roadmaps.json").then((r) => r && setRoadmaps(r));
+    // 깊은 링크 ?stage=build — 준비된 문서로 바로 시작 (다음 틱에서, 렌더 중 갱신이 아니게)
+    const t = setTimeout(() => { if (new URLSearchParams(window.location.search).get("stage") === "build") void startPrepared(); }, 0);
+    return () => clearTimeout(t);
+  }, [startPrepared]);
+
+  useEffect(() => {
+    const onPop = (e: PopStateEvent) => { const s = (e.state as { stage?: unknown } | null)?.stage; setStage(isStage(s) ? s : "gate"); window.scrollTo({ top: 0, behavior: "auto" }); };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  const startUpload = (files: File[]) => {
+    // 서버 모드: 문서를 올리고 작업(run)을 만든 뒤 그 run 의 사건을 따라간다 — 서버 측 /api/v2/jobs 는 다음 단계.
+    alert(`Upload mode needs the agent server (${files.length} file(s) selected). This copy replays a recorded session.`);
+  };
+
+  const docCount = meta?.planned_total ?? meta?.documents.length ?? 180;
+  return (
+    <>
+      {stage !== "gate" && <ScrollProgress />}
+      <TopNav stage={stage} reached={reached} onChange={go} onStart={startPrepared} />
+      <main className={`relative z-10 w-full pb-28 ${stage === "gate" ? "" : stage === "build" ? "mx-auto max-w-[1700px] px-6 pt-24 sm:px-10" : "mx-auto max-w-5xl px-6 pt-28 sm:px-12"}`}>
+        <div key={stage} className="view-enter">
+          {stage === "gate" && <Landing onStart={startPrepared} docCount={docCount} />}
+          {stage === "upload" && <Upload meta={meta} serverOk={serverOk} onPrepared={startPrepared} onUpload={startUpload} />}
+          {stage === "build" && meta && source && <Build meta={meta} source={source} onDone={() => go("cards")} />}
+          {stage === "build" && !source && <p className="text-sm text-muted">Loading the recorded session…</p>}
+          {stage === "cards" && <Cards cards={cards} onNext={() => go("roadmap")} />}
+          {stage === "roadmap" && <RoadmapView data={roadmaps} serverOk={serverOk} />}
+        </div>
+      </main>
+      <Frame stage={stage} />
+    </>
+  );
+}

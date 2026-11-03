@@ -41,6 +41,10 @@ export default function Build({ meta, source, onDone }: { meta: Meta; source: So
     const onResize = () => e.relayout();
     window.addEventListener("resize", onResize);
     start(e, 0);
+    // 시연·캡처용: ?skip=1 이면 바로 끝까지 적용
+    if (new URLSearchParams(window.location.search).get("skip") === "1" && source.kind === "static") {
+      setTimeout(() => { stopRef.current?.(); e.beams = false; source.events.filter((ev) => ev.seq > e.lastSeq).forEach((ev) => e.handle(ev)); e.beams = true; e.relayout(); setRunning(false); setFinished(true); }, 300);
+    }
     return () => { stopRef.current?.(); window.removeEventListener("resize", onResize); e.destroy(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

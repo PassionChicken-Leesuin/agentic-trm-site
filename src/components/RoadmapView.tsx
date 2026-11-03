@@ -58,8 +58,10 @@ function Chart({ rm, onSelect, selected }: { rm: Roadmap; onSelect: (n: RmNode |
 
 /** 04. 관점 선택 → 선정된 기회 카드 10장 → 그 카드로 만든 로드맵. v2 데이터가 없으면 v1(kb/initial) 로 내려간다. */
 export default function RoadmapView({ data, v2, selection, cards, serverOk }: { data: Roadmaps | null; v2: Roadmaps | null; selection: Selection | null; cards: CardV2[]; serverOk: boolean }) {
-  const [phase, setPhase] = useState<"idle" | "working" | "done">("idle");
-  const [stance, setStance] = useState<StanceKey>("balanced");
+  const q = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+  const qs = q?.get("stance");
+  const [phase, setPhase] = useState<"idle" | "working" | "done">(q?.get("auto") === "1" ? "done" : "idle");   // 시연·캡처용 ?auto=1&stance=q1
+  const [stance, setStance] = useState<StanceKey>(qs === "q1" || qs === "q2" || qs === "q3" ? qs : "balanced");
   const [compare, setCompare] = useState<"stance" | "initial">("stance");
   const [sel, setSel] = useState<RmNode | null>(null);
   const [openCard, setOpenCard] = useState<string | null>(null);

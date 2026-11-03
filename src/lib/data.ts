@@ -74,12 +74,14 @@ export function replay(
       onDone();
       return;
     }
+    // 기록 앞부분의 읽기 단계(doc.read 가 연달아 180건)는 한 틱에 모두 처리한다 — 구조가 자라기 시작할 때까지 기다리지 않게
+    while (i < events.length - 1 && events[i].type === "doc.read" && events[i + 1].type === "doc.read") {
+      onEvent(events[i++]);
+    }
     const e = events[i++];
     onEvent(e);
     let gap = minGap;
-    if (speed > 0 && i < events.length && e.type === "doc.read" && events[i].type === "doc.read") {
-      gap = minGap;   // 기록 앞부분의 읽기 단계(doc.read 가 연달아 180건)는 실제 간격을 따르지 않고 빠르게 넘긴다
-    } else if (speed > 0 && i < events.length) {
+    if (speed > 0 && i < events.length) {
       const dt = (Date.parse(events[i].ts) - Date.parse(e.ts)) / 1000 / speed;
       gap = Math.min(Math.max(dt, minGap), maxGap);
     } else if (speed === 0) {

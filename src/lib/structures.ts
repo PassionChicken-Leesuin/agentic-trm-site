@@ -64,7 +64,7 @@ export class StructuresEngine {
     this.LCOL = { why: css("--why"), what: css("--what"), how: css("--how"), resource: css("--resource") };
     this.S = {
       ents: new Map(), terms: [], passages: 0, byStatus: {}, docsDone: 0, docsTotal: this.S?.docsTotal ?? 0, curDoc: null,
-      themes: new Map(), areas: new Map(), themeArea: new Map(), opps: new Map(), cells: new Map(), rows: new Map(),
+      doneIds: new Set<string>(), themes: new Map(), areas: new Map(), themeArea: new Map(), opps: new Map(), cells: new Map(), rows: new Map(),
       gnodes: new Map(), gedges: new Map(), facts: new Map(), subjects: new Map(), share: {},
     };
     if (this.meta?.tree) this.meta.tree.areas.forEach((a) => a.theme_ids.forEach((t) => this.S.themeArea.set(t, a.name)));
@@ -114,7 +114,7 @@ export class StructuresEngine {
         S.curDoc = E;
         this.els.doc.innerHTML = `<b>${E.date}</b> · ${E.source_type}${E.synthetic ? " · internal" : ""} · ${esc(E.title)} · ${E.n} passages`;
         break;
-      case "doc.finished": S.docsDone++; this.renderProgress(); break;
+      case "doc.finished": if (!S.doneIds.has(E.doc_id)) { S.doneIds.add(E.doc_id); S.docsDone++; } this.renderProgress(); break;   // 문서 id 기준 (재개 시 중복 사건 방지)
       case "glossary.term": this.onTerm(E); break;
       case "glossary.confirmed": { const c = this.els.chips.querySelector(`[data-tid="${E.tid}"]`) as HTMLElement | null; if (c) c.style.borderColor = css("--k0"); break; }
       case "entity.created": case "entity.linked": { const e = this.ent(E.eid, E.name); (E.layers || []).forEach((l: string) => (e.layers[l] = (e.layers[l] || 0) + 1)); break; }

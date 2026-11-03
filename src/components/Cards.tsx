@@ -53,8 +53,7 @@ export default function Cards({ cards, candidates, onNext }: { cards: CardV2[]; 
       </Reveal>
 
       {candidates && (
-        <Reveal delay={220}>
-          <div className="mt-8 border border-hairline p-5">
+        <div className="mt-8 border border-hairline p-5">
             <p className="label">Step 1 · Candidates extracted while reading</p>
             <div className="mt-3 grid gap-4 md:grid-cols-4">
               {[
@@ -80,7 +79,6 @@ export default function Cards({ cards, candidates, onNext }: { cards: CardV2[]; 
               </div>
             )}
           </div>
-        </Reveal>
       )}
 
       <Reveal delay={280}>

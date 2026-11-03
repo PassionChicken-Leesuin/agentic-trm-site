@@ -8,11 +8,11 @@ export type Source = { kind: "static"; events: KbEvent[] } | { kind: "server"; r
 
 // 02 화면에는 지식 구조만 둔다 (K1·K2·K4·K5). 기회 후보(k3)는 03 화면에서 '후보 추출 → 카드' 로 보여 주므로 여기서는 숨긴 패널로만 유지한다 (엔진이 참조).
 const PANELS: { id: "k1" | "k2" | "k3" | "k4" | "k5"; dom: string; k: string; fn: string; hidden?: boolean }[] = [
-  { id: "k1", dom: "p1", k: "K1  Evidence store", fn: "① grounding — every stored passage" },
-  { id: "k2", dom: "p2", k: "K2  Theme summary tree", fn: "② trend — passage → theme → area" },
-  { id: "k3", dom: "p3", k: "Opportunity candidates", fn: "③ opportunities the documents name", hidden: true },
-  { id: "k4", dom: "p4", k: "K4  Relation graph", fn: "③ links — (subject, relation, subject)" },
-  { id: "k5", dom: "p5", k: "K5  Temporal knowledge graph", fn: "④ timing — chains per subject and attribute" },
+  { id: "k1", dom: "p1", k: "Evidence store", fn: "every stored passage, with layer tags" },
+  { id: "k2", dom: "p2", k: "Theme summary tree", fn: "passage → theme → area" },
+  { id: "k3", dom: "p3", k: "Opportunity candidates", fn: "opportunities the documents name", hidden: true },
+  { id: "k4", dom: "p4", k: "Relation graph", fn: "(subject, relation, subject) stated in documents" },
+  { id: "k5", dom: "p5", k: "Temporal knowledge graph", fn: "dated statements, chained per subject and attribute" },
 ];
 
 /**
@@ -88,7 +88,7 @@ export default function Build({ meta, source, onDone }: { meta: Meta; source: So
           </label>
         </div>
       </div>
-      <div className="chips mb-2"><span className="label mr-2" style={{ color: "var(--k0)" }}>K0 glossary</span><span id="chips" className="chips" /></div>
+      <div className="chips mb-2"><span className="label mr-2" style={{ color: "var(--k0)" }}>Glossary</span><span id="chips" className="chips" /></div>
       <div className="panels">
         {PANELS.map((p) => (
           <section key={p.id} className="panel" id={p.dom} data-flash="false" style={p.hidden ? { display: "none" } : undefined} aria-hidden={p.hidden || undefined}>

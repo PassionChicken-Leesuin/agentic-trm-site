@@ -147,7 +147,7 @@ export class StructuresEngine {
     c.innerHTML = `${esc(ev.name)}<small>${ev.term_type}${ev.unit ? " · " + esc(ev.unit) : ""}</small>`;
     this.els.chips.prepend(c); setTimeout(() => c.classList.remove("new"), 1500);
     while (this.els.chips.children.length > 40) this.els.chips.lastChild!.remove();
-    this.log("k0", `K0 term +${ev.term_type}: ${ev.name}`);
+    this.log("k0", `glossary +${ev.term_type}: ${ev.name}`);
   }
 
   // ------------------------------------------------------------ K1
@@ -387,8 +387,8 @@ export class StructuresEngine {
   renderStats() {
     const S = this.S;
     this.els.counts.c1.textContent = `${S.passages} passages`;
-    const rows = [["K0 terms", S.terms.length], ["K1 passages (new / dup / irr)", `${S.byStatus.new || 0} / ${S.byStatus.duplicate || 0} / ${S.byStatus.irrelevant || 0}`], ["shared subjects", S.ents.size],
-      ["K2 themes · areas", `${S.themes.size} · ${S.areas.size}`], ["K4 relations", S.gedges.size], ["K5 facts", S.facts.size], ["opportunity candidates (→ cards)", S.opps.size]];
+    const rows = [["glossary terms", S.terms.length], ["evidence store: passages (new / dup / irr)", `${S.byStatus.new || 0} / ${S.byStatus.duplicate || 0} / ${S.byStatus.irrelevant || 0}`], ["shared subjects", S.ents.size],
+      ["theme tree: themes · areas", `${S.themes.size} · ${S.areas.size}`], ["relation graph: relations", S.gedges.size], ["temporal graph: facts", S.facts.size], ["opportunity candidates (→ cards)", S.opps.size]];
     this.els.stats.innerHTML = rows.map(([k, v]) => `<span>${k}</span><b>${v}</b>`).join("");
     const sh = Object.entries(S.share) as [string, any][];
     this.els.share.innerHTML = `<tr><th>type</th><th>n</th><th>tree</th><th>graph</th><th>time</th><th>opps</th></tr>` +

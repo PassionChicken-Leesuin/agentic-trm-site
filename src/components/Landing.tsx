@@ -9,18 +9,20 @@ const RoadmapScene = dynamic(() => import("./scene/RoadmapScene"), { ssr: false 
 export default function Landing({ onStart, docCount }: { onStart: () => void; docCount: number }) {
   return (
     <section className="mx-auto w-full max-w-[1320px] px-6 pb-16 pt-28 sm:px-10">
-      <div className="grid gap-10 md:grid-cols-[1.25fr_1fr] md:items-start">
+      <Reveal><p className="label">A living knowledge base for technology roadmapping</p></Reveal>
+      <Reveal delay={90}>
+        <h1 className="display hero-title-lg mt-6">
+          See how a firm-specific<br />knowledge base is built<br />for agentic roadmapping.
+        </h1>
+      </Reveal>
+      <div className="mt-10 grid gap-10 md:grid-cols-[1.25fr_1fr] md:items-start">
+        <div className="hidden md:block" aria-hidden="true" />
         <div>
-          <Reveal><p className="label">A living knowledge base for technology roadmapping</p></Reveal>
-          <Reveal delay={90}>
-            <h1 className="display hero-title mt-6">See how a<br />roadmap is built.</h1>
-          </Reveal>
-        </div>
-        <div className="md:pt-14">
           <Reveal delay={160}>
             <p className="max-w-md text-[1.05rem] leading-[1.6] text-body">
-              An agent reads a company&rsquo;s documents and lays them out as five knowledge structures. Passages are evidence,
-              themes are trends, opportunities are the grid, relations are the graph, dates are the chains. Watch it read, dispatch and assemble.
+              An agent reads a company&rsquo;s documents and organizes what it finds into five connected knowledge structures.
+              Passages provide evidence, themes reveal trends, opportunities form the roadmap grid, relations map connections,
+              and dates show how things unfold over time. Watch the knowledge base take shape.
             </p>
           </Reveal>
           <Reveal delay={240}>

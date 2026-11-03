@@ -24,7 +24,7 @@ export default function Build({ meta, source, onDone }: { meta: Meta; source: So
   const [speed, setSpeed] = useState(() => { const q = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("speed") : null; return q != null ? +q : 20; });
   const [running, setRunning] = useState(false);
   const [finished, setFinished] = useState(false);
-  const [beams, setBeams] = useState(true);
+  const [started, setStarted] = useState(false);
 
   useEffect(() => {
     const r = root.current!;
@@ -44,11 +44,9 @@ export default function Build({ meta, source, onDone }: { meta: Meta; source: So
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => { if (eng.current) eng.current.beams = beams; }, [beams]);
-
   function start(e: StructuresEngine, from: number) {
     stopRef.current?.();
-    setRunning(true); setFinished(false);
+    setRunning(true); setFinished(false); setStarted(true);
     const done = () => { setRunning(false); setFinished(true); };
     if (source.kind === "static") {
       stopRef.current = replay(source.events, (ev) => e.handle(ev), done, { speed, start: from });
@@ -61,14 +59,14 @@ export default function Build({ meta, source, onDone }: { meta: Meta; source: So
   }
   const pause = () => { stopRef.current?.(); setRunning(false); };
   const resume = () => { if (eng.current) start(eng.current, eng.current.lastSeq); };
-  const restart = () => { if (eng.current) { eng.current.reset(); eng.current.setMeta(meta); start(eng.current, 0); } };
+  const restart = () => { if (eng.current) { eng.current.reset(); eng.current.setMeta(meta); setStarted(false); start(eng.current, 0); } };
   const skip = () => {
     if (!eng.current) return;
     stopRef.current?.();
     if (source.kind === "static") {
       const e = eng.current; e.beams = false;
       source.events.filter((ev) => ev.seq > e.lastSeq).forEach((ev) => e.handle(ev));
-      e.beams = beams; e.relayout(); setRunning(false); setFinished(true);
+      e.beams = true; e.relayout(); setRunning(false); setFinished(true);
     }
   };
 
@@ -79,13 +77,14 @@ export default function Build({ meta, source, onDone }: { meta: Meta; source: So
         <span className="h-px w-10 bg-hairline" aria-hidden="true" />
         <span id="doc" className="text-xs text-muted" />
         <div className="ml-auto flex items-center gap-2">
-          {running ? <button className="btn" onClick={pause}>Pause</button> : <button className="btn" onClick={resume} disabled={finished}>Resume</button>}
+          {running
+            ? <button className="btn" onClick={pause}>Pause</button>
+            : <button className="btn" data-primary={!started ? "true" : undefined} onClick={resume} disabled={finished}>{started ? "Resume" : "Start"}</button>}
           <button className="btn" onClick={restart}>Restart</button>
           {source.kind === "static" && <button className="btn" onClick={skip} disabled={finished}>Skip to end</button>}
           <label className="label flex items-center gap-2">speed
             <input type="range" min={1} max={80} value={speed} onChange={(e) => { setSpeed(+e.target.value); }} onMouseUp={() => eng.current && running && start(eng.current, eng.current.lastSeq)} className="w-24 accent-[var(--ink)]" />
           </label>
-          <label className="label flex items-center gap-2"><input type="checkbox" checked={beams} onChange={(e) => setBeams(e.target.checked)} /> links between structures</label>
         </div>
       </div>
       <div className="chips mb-2"><span className="label mr-2" style={{ color: "var(--k0)" }}>K0 glossary</span><span id="chips" className="chips" /></div>

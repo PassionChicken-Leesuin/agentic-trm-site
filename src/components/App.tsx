@@ -36,10 +36,11 @@ export default function App() {
   }, []);
 
   const startPrepared = useCallback(async () => {
-    const events = await loadEvents(DEFAULT_RUN);
-    setSource({ kind: "static", events });
+    // 먼저 화면을 바꾸고 나서 사건 파일(수 MB)을 읽는다 — 첫 화면에서 멈춘 것처럼 보이지 않게
     setReached((r) => new Set([...r, "upload", "build"]));
     go("build");
+    const events = await loadEvents(DEFAULT_RUN);
+    setSource({ kind: "static", events });
   }, [go]);
 
   useEffect(() => {
@@ -73,7 +74,9 @@ export default function App() {
           {stage === "gate" && <Landing onStart={startPrepared} docCount={docCount} />}
           {stage === "upload" && <Upload meta={meta} serverOk={serverOk} onPrepared={startPrepared} onUpload={startUpload} />}
           {stage === "build" && meta && source && <Build meta={meta} source={source} onDone={() => go("cards")} />}
-          {stage === "build" && !source && <p className="text-sm text-muted">Loading the recorded session…</p>}
+          {stage === "build" && !source && (
+            <div className="flex items-center gap-3 text-sm text-muted"><span className="spin" aria-hidden="true" />Loading the recorded session (180 documents, ~9 MB of events)…</div>
+          )}
           {stage === "cards" && <Cards cards={cards} onNext={() => go("roadmap")} />}
           {stage === "roadmap" && <RoadmapView data={roadmaps} serverOk={serverOk} />}
         </div>

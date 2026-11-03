@@ -186,3 +186,7 @@ table.share td:first-child, table.share th:first-child { text-align: left; }
   .view-enter, .ps { animation: none; opacity: 1; }
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
+
+/* 로딩 표시 */
+.spin { display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--hairline); border-top-color: var(--ink); animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }

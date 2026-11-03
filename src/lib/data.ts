@@ -77,7 +77,9 @@ export function replay(
     const e = events[i++];
     onEvent(e);
     let gap = minGap;
-    if (speed > 0 && i < events.length) {
+    if (speed > 0 && i < events.length && e.type === "doc.read" && events[i].type === "doc.read") {
+      gap = minGap;   // 기록 앞부분의 읽기 단계(doc.read 가 연달아 180건)는 실제 간격을 따르지 않고 빠르게 넘긴다
+    } else if (speed > 0 && i < events.length) {
       const dt = (Date.parse(events[i].ts) - Date.parse(e.ts)) / 1000 / speed;
       gap = Math.min(Math.max(dt, minGap), maxGap);
     } else if (speed === 0) {

@@ -266,7 +266,7 @@ export class StructuresEngine {
       .attr("fill", (d: any) => this.LCOL[d.layer] || muted).attr("fill-opacity", (d: any) => 0.22 + 0.22 * Math.min(3, d.strength))
       .on("mousemove", (e: MouseEvent, d: any) => this.tip(e, `<b>${esc(d.row_name)}</b> → <b>${esc(d.col_name)}</b><br>${d.relation} · ${d.derivation} · strength ${d.strength}<br>${esc(d.reason || "")}`)).on("mouseleave", this.hideTip);
     S.cells.forEach((c: any) => (c.fresh = false)); S.opps.forEach((o: any) => (o.fresh = false));
-    this.els.counts.c3.textContent = `${S.opps.size} opportunities · ${S.cells.size} cells`;
+    this.els.counts.c3.textContent = `${S.opps.size} · ${S.cells.size} links`;
   }
 
   // ------------------------------------------------------------ K4

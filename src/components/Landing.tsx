@@ -12,7 +12,7 @@ export default function Landing({ onStart, docCount }: { onStart: () => void; do
       <Reveal><p className="label">A living knowledge base for technology roadmapping</p></Reveal>
       <Reveal delay={90}>
         <h1 className="display hero-title-lg mt-6">
-          See how a firm-specific<br />knowledge base is built<br />for agentic roadmapping.
+          See how a firm-specific{" "}<br className="hidden sm:inline" />knowledge base is built{" "}<br className="hidden sm:inline" />for agentic roadmapping.
         </h1>
       </Reveal>
       <div className="mt-10 grid gap-10 md:grid-cols-[1.25fr_1fr] md:items-start">

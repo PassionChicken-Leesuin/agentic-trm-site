@@ -8,7 +8,7 @@ import ScrollProgress from "./ScrollProgress";
 import Upload from "./Upload";
 import Build, { type Source } from "./Build";
 import Cards, { type Card } from "./Cards";
-import RoadmapView, { type Roadmaps } from "./RoadmapView";
+import RoadmapView, { type Roadmaps, type Selection, type CardV2 } from "./RoadmapView";
 import { isStage, type Stage } from "./views";
 import { DEFAULT_RUN, loadEvents, loadJSON, loadMeta, serverAvailable, type Meta } from "@/lib/data";
 
@@ -27,6 +27,9 @@ export default function App() {
   const [source, setSource] = useState<Source | null>(null);
   const [cards, setCards] = useState<Card[]>([]);
   const [roadmaps, setRoadmaps] = useState<Roadmaps | null>(null);
+  const [roadmapsV2, setRoadmapsV2] = useState<Roadmaps | null>(null);
+  const [selection, setSelection] = useState<Selection | null>(null);
+  const [cardsV2, setCardsV2] = useState<CardV2[]>([]);
 
   const go = useCallback((s: Stage) => {
     setReached((r) => new Set([...r, s]));
@@ -48,6 +51,9 @@ export default function App() {
     serverAvailable().then(setServerOk);
     loadJSON<Card[]>(DEFAULT_RUN, "cards.json").then((c) => c && setCards(c));
     loadJSON<Roadmaps>(DEFAULT_RUN, "roadmaps.json").then((r) => r && setRoadmaps(r));
+    loadJSON<Roadmaps>(DEFAULT_RUN, "roadmaps_v2.json").then((r) => r && setRoadmapsV2(r));
+    loadJSON<Selection>(DEFAULT_RUN, "selection.json").then((r) => r && setSelection(r));
+    loadJSON<CardV2[]>(DEFAULT_RUN, "cards_v2.json").then((r) => r && setCardsV2(r));
     // 깊은 링크 ?stage=build — 준비된 문서로 바로 시작 (다음 틱에서, 렌더 중 갱신이 아니게)
     const t = setTimeout(() => { if (new URLSearchParams(window.location.search).get("stage") === "build") void startPrepared(); }, 0);
     return () => clearTimeout(t);
@@ -78,7 +84,7 @@ export default function App() {
             <div className="flex items-center gap-3 text-sm text-muted"><span className="spin" aria-hidden="true" />Loading the recorded session (180 documents, ~9 MB of events)…</div>
           )}
           {stage === "cards" && <Cards cards={cards} onNext={() => go("roadmap")} />}
-          {stage === "roadmap" && <RoadmapView data={roadmaps} serverOk={serverOk} />}
+          {stage === "roadmap" && <RoadmapView data={roadmaps} v2={roadmapsV2} selection={selection} cards={cardsV2} serverOk={serverOk} />}
         </div>
       </main>
       <Frame stage={stage} />

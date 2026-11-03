@@ -18,6 +18,8 @@ export default function Reveal({
     const el = ref.current;
     if (!el) return;
 
+    // Fallback: reveal after 1.5s even if the observer never fires (headless browsers, some embeds)
+    const fallback = setTimeout(() => setVisible(true), 1500);
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
@@ -29,7 +31,7 @@ export default function Reveal({
     );
 
     observer.observe(el);
-    return () => observer.disconnect();
+    return () => { clearTimeout(fallback); observer.disconnect(); };
   }, []);
 
   return (

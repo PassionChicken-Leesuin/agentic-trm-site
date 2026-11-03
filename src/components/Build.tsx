@@ -107,7 +107,7 @@ export default function Build({ meta, source, onDone }: { meta: Meta; source: So
         <div id="tip" className="tip" />
       </div>
       {finished && (
-        <div className="mt-6 flex items-center gap-4">
+        <div className="mt-6 flex items-center justify-end gap-4">
           <span className="label">Construction complete</span>
           <span className="h-px w-10 bg-hairline" aria-hidden="true" />
           <button className="btn" data-primary="true" onClick={onDone}>Open the opportunity cards →</button>

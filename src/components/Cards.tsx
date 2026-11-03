@@ -134,7 +134,7 @@ export default function Cards({ cards, candidates, onNext }: { cards: CardV2[]; 
           );
         })}
       </div>
-      <div className="mt-10 flex items-center gap-4">
+      <div className="mt-10 flex items-center justify-end gap-4">
         <span className="h-px w-10 bg-hairline" aria-hidden="true" />
         <button className="btn" data-primary="true" onClick={onNext}>Let the models choose and the agent build the roadmap →</button>
       </div>

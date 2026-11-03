@@ -27,7 +27,7 @@ export default function TopNav({ stage, reached, onChange, onStart }: { stage: S
         </ol>
         <div className="ml-auto flex items-center gap-4">
           <a className="btn-ghost text-xs" href="https://github.com/PassionChicken-Leesuin/agentic-trm-site" target="_blank" rel="noopener noreferrer">GitHub</a>
-          <button className="btn" data-primary="true" onClick={onStart} style={{ padding: "0.55em 1em", fontSize: 12.5 }}>Start with IonQ documents</button>
+
         </div>
       </nav>
     </header>

@@ -20,8 +20,8 @@ export default function Landing({ onStart, docCount }: { onStart: () => void; do
         <div>
           <Reveal delay={160}>
             <p className="max-w-md text-[1.05rem] leading-[1.6] text-body">
-              An agent reads a company&rsquo;s documents and organizes what it finds into five connected knowledge structures.
-              Passages provide evidence, themes reveal trends, opportunities form the roadmap grid, relations map connections,
+              An agent reads a company&rsquo;s documents and organizes what it finds into connected knowledge structures.
+              Passages provide evidence, themes reveal trends, opportunities become cards, relations map connections,
               and dates show how things unfold over time. Watch the knowledge base take shape.
             </p>
           </Reveal>
@@ -46,9 +46,9 @@ export default function Landing({ onStart, docCount }: { onStart: () => void; do
       <div className="mt-20 grid gap-6 border-t border-hairline pt-10 md:grid-cols-4">
         {[
           ["01", "Documents", "Filings, blogs, papers, memos — in date order."],
-          ["02", "Five structures", "The Router decides, passage by passage, where each fact lives."],
-          ["03", "Opportunity cards", "One card per opportunity, assembled from all five."],
-          ["04", "Roadmap", "The agent writes the roadmap from what it built — and cites it."],
+          ["02", "Knowledge structures", "The Router decides, passage by passage, where each fact lives: evidence, themes, relations, dates."],
+          ["03", "Opportunity cards", "One card per opportunity, assembled from the structures — a topic roadmap each."],
+          ["04", "Roadmap", "Models debate which opportunities lead; the agent writes the roadmap from those cards and cites it."],
         ].map(([n, h, p], i) => (
           <Reveal key={n} delay={80 * i}>
             <div>

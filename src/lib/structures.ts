@@ -130,11 +130,11 @@ export class StructuresEngine {
       case "tree.area_built": S.areas.set(E.name, E); this.log("k2", `area: ${E.name} (${E.themes} themes, ${E.trend})`); this.flash("k2"); this.renderTree(); break;
       case "tree.built": this.log("k2", `tree complete: ${E.areas} areas, ${E.themes} themes`); this.renderTree(); break;
       case "grid.started":
-        this.log("k3", `assembling grid: ${E.columns.length} columns`);
+        this.log("k3", `linking opportunity candidates: ${E.columns.length} opportunities`);
         E.columns.forEach((c: any) => { const o = S.opps.get(c.eid) || { eid: c.eid, name: c.name, n: 0, customers: new Set(), offerings: new Set() }; o.tier = c.tier; o.support = c.support; S.opps.set(c.eid, o); });
         this.renderGrid(); break;
       case "grid.cell": this.onCell(E); break;
-      case "grid.built": this.log("k3", `grid complete: ${E.n_cells} cells`); break;
+      case "grid.built": this.log("k3", `candidates linked: ${E.n_cells} links to drivers, needs, capabilities and enablers`); break;
       case "time.relinked": this.log("k5", `chains relinked: update ${E.update}, duplicate ${E.duplicate}, conflict ${E.conflict}`); break;
       case "error": this.log("m", `error ${E.structure || ""}: ${E.msg}`); break;
     }
@@ -389,10 +389,10 @@ export class StructuresEngine {
     const S = this.S;
     this.els.counts.c1.textContent = `${S.passages} passages`;
     const rows = [["K0 terms", S.terms.length], ["K1 passages (new / dup / irr)", `${S.byStatus.new || 0} / ${S.byStatus.duplicate || 0} / ${S.byStatus.irrelevant || 0}`], ["shared subjects", S.ents.size],
-      ["K2 themes · areas", `${S.themes.size} · ${S.areas.size}`], ["K3 opportunities · cells", `${S.opps.size} · ${S.cells.size}`], ["K4 relations", S.gedges.size], ["K5 facts", S.facts.size]];
+      ["K2 themes · areas", `${S.themes.size} · ${S.areas.size}`], ["Opportunity candidates · links", `${S.opps.size} · ${S.cells.size}`], ["K4 relations", S.gedges.size], ["K5 facts", S.facts.size]];
     this.els.stats.innerHTML = rows.map(([k, v]) => `<span>${k}</span><b>${v}</b>`).join("");
     const sh = Object.entries(S.share) as [string, any][];
-    this.els.share.innerHTML = `<tr><th>type</th><th>n</th><th>tree</th><th>grid</th><th>graph</th><th>time</th></tr>` +
+    this.els.share.innerHTML = `<tr><th>type</th><th>n</th><th>tree</th><th>opps</th><th>graph</th><th>time</th></tr>` +
       sh.map(([k, v]) => `<tr><td>${k}</td><td>${v.n}</td>${["tree", "grid", "graph", "time"].map((s) => `<td>${Math.round((100 * v[s]) / v.n)}%</td>`).join("")}</tr>`).join("");
   }
   relayout() { this.renderTree(); this.renderGrid(); this.renderTime(); }

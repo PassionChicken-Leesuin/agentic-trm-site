@@ -9,8 +9,8 @@ export type Source = { kind: "static"; events: KbEvent[] } | { kind: "server"; r
 const PANELS: { id: "k1" | "k2" | "k3" | "k4" | "k5"; dom: string; k: string; fn: string }[] = [
   { id: "k1", dom: "p1", k: "K1  Evidence store", fn: "① grounding — every stored passage" },
   { id: "k2", dom: "p2", k: "K2  Theme summary tree", fn: "② trend — passage → theme → area" },
-  { id: "k3", dom: "p3", k: "K3  Opportunity linkage grid", fn: "③ opportunities & priority" },
-  { id: "k4", dom: "p4", k: "K4  Dependency graph", fn: "④ links — (subject, relation, subject)" },
+  { id: "k3", dom: "p3", k: "Opportunity candidates", fn: "③ what-layer opportunities named in documents — each becomes a card" },
+  { id: "k4", dom: "p4", k: "K4  Relation graph", fn: "④ links — (subject, relation, subject)" },
   { id: "k5", dom: "p5", k: "K5  Temporal knowledge graph", fn: "⑤ timing — chains per subject and attribute" },
 ];
 

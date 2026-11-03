@@ -1,110 +1,100 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Reveal from "./Reveal";
+import type { CardV2 } from "./RoadmapView";
 
-export type CardRow = { eid: string; name: string; relation: string; derivation: string; strength: number; pid?: string | null };
-export type Card = {
-  id: string; name: string; kind?: string; support?: number; links?: number; maturity?: string;
-  markets: string[]; markets_inferred: string[]; offerings: string[];
-  why: CardRow[]; what: CardRow[]; how: CardRow[]; resource: CardRow[];
-  trend: { area: string | null; area_trend: string | null; theme: string; theme_trend: string; shares: { year: number; share: number }[]; summary: string; pids: string[] }[];
-  timing: { subject: string; attribute: string; family: string; chain: { value: string; unit?: string | null; valid: number | null; stated: string; modality: string; status: string; fid: string; pid: string }[] }[];
-  links_k4: { src: string; rel: string; dst: string; pid: string }[];
-  evidence: Record<string, { text: string; doc_id: string; date: string; source_type: string; synthetic: boolean }>;
-};
+const LINES: { key: string; label: string; layer: string; n: number }[] = [
+  { key: "state", label: "now", layer: "what", n: 2 },
+  { key: "why", label: "why · needs & drivers", layer: "why", n: 3 },
+  { key: "trend", label: "trend · documents per year", layer: "why", n: 1 },
+  { key: "what", label: "what · offerings", layer: "what", n: 3 },
+  { key: "when", label: "when · dated statements", layer: "what", n: 3 },
+  { key: "how", label: "how · capabilities", layer: "how", n: 3 },
+  { key: "resource", label: "resources · enablers", layer: "resource", n: 3 },
+  { key: "actors", label: "actors", layer: "resource", n: 2 },
+  { key: "issue", label: "issues · risks, barriers, open questions", layer: "resource", n: 2 },
+];
 
-function Rows({ rows, label, layer }: { rows: CardRow[]; label: string; layer: string }) {
-  if (!rows.length) return null;
-  return (
-    <div className="row" data-layer={layer}>
-      <span className="lbl">{label}</span>
-      <div>
-        {rows.slice(0, 6).map((r) => (
-          <span key={r.eid + r.relation} className="item">{r.name}<small> · {r.relation}{r.derivation === "derived" ? " · inferred" : ""}</small></span>
-        ))}
-      </div>
-    </div>
-  );
+/** 한 줄의 근거 id 꼬리([ps_..., tf_...])를 떼고, 'internal' 표시를 남긴다. */
+function clean(ln: string) {
+  return ln.replace(/\s*\[(ps|tf)_[0-9a-f]+(,\s*(ps|tf)_[0-9a-f]+)*\]/g, "").replace(/\s*\(in \d+ cards\)/g, "");
 }
 
-export default function Cards({ cards, onNext }: { cards: Card[]; onNext: () => void }) {
+export default function Cards({ cards, onNext }: { cards: CardV2[]; onNext: () => void }) {
   const [open, setOpen] = useState<string | null>(null);
+  const [kind, setKind] = useState<"all" | "application" | "product_type">("all");
+  const sorted = useMemo(() => [...cards].filter((c) => kind === "all" || c.kind === kind).sort((a, b) => (a.kind === b.kind ? a.name.localeCompare(b.name) : a.kind < b.kind ? -1 : 1)), [cards, kind]);
+  const counts = useMemo(() => ({ all: cards.length, application: cards.filter((c) => c.kind === "application").length, product_type: cards.filter((c) => c.kind === "product_type").length }), [cards]);
   return (
     <section>
       <Reveal>
         <div className="flex items-center gap-4"><p className="label">03 / 04 · Opportunity cards</p><span className="h-px w-16 bg-hairline" aria-hidden="true" /></div>
       </Reveal>
       <Reveal delay={80}>
-        <h1 className="display mt-6 text-[clamp(1.8rem,4.4vw,3rem)] leading-[1.15]">One card per opportunity, assembled from all five structures.</h1>
+        <h1 className="display mt-6 text-[clamp(1.8rem,4.4vw,3rem)] leading-[1.15]">One card per opportunity the documents describe — a topic roadmap each.</h1>
       </Reveal>
       <Reveal delay={160}>
         <p className="mt-5 max-w-2xl text-[0.95rem] leading-[1.85] text-body">
-          Market and drivers come from the linkage grid and the theme tree; offerings carry their timing chains; capabilities and enablers bring
-          the stated relations; every line points back to a source passage. The card mirrors the per-opportunity topic roadmap of a T-Plan workshop.
+          A Cambridge roadmapping workshop writes one topic roadmap per priority opportunity: market, product and technology rows against a
+          current-to-vision timeline, plus risks and actions. Here the agent assembles that page for every opportunity it found, from the
+          structures it built: the company&rsquo;s own need and driver sentences (evidence store), documents per year for the card&rsquo;s themes
+          (theme tree), capabilities and enablers it is linked to (relation graph), and every dated statement about its subjects, including
+          revised targets (temporal graph). The cards are not ranked here. Which of them lead the roadmap is decided in the next step.
         </p>
       </Reveal>
-      <div className="mt-10 grid gap-5 md:grid-cols-2">
-        {cards.map((c, i) => (
-          <Reveal key={c.id} delay={200 + i * 70}>
-            <article className="card" data-eid={c.id}>
-              <div className="flex items-baseline gap-3">
-                <h3>{c.name}</h3>
-                <span className="label ml-auto">{c.kind?.replace("_", " ")} · {c.support} docs · {c.maturity}</span>
-              </div>
-              <p className="text-xs text-muted">
-                markets: {c.markets.length ? c.markets.join(", ") : c.markets_inferred.length ? `${c.markets_inferred.join(", ")} (inferred)` : "unspecified"}
-                {c.offerings.length ? ` · offerings: ${c.offerings.join(", ")}` : ""}
-              </p>
-              <Rows rows={c.why} label="why · drivers" layer="why" />
-              {c.trend.slice(0, 1).map((t) => (
-                <div className="row" data-layer="why" key={t.theme}>
-                  <span className="lbl">trend</span>
-                  <div className="text-xs leading-relaxed">
-                    <span className="text-ink">{t.theme}</span> <small className="text-muted">({t.theme_trend}{t.area ? `, area ${t.area}` : ""}; doc share {t.shares.slice(-3).map((s) => `${s.year} ${Math.round(s.share * 100)}%`).join(", ")})</small>
-                    <div className="text-muted">{t.summary.slice(0, 180)}{t.summary.length > 180 ? "…" : ""}</div>
+      <Reveal delay={220}>
+        <div className="mt-8 flex flex-wrap items-center gap-3">
+          <div className="flex border border-hairline">
+            {(["all", "application", "product_type"] as const).map((k) => (
+              <button key={k} className="label px-4 py-2 data-[on=true]:text-ink border-l border-hairline-soft first:border-l-0" data-on={kind === k} onClick={() => setKind(k)}>
+                {k === "all" ? "all" : k === "application" ? "applications" : "product types"} · {counts[k]}
+              </button>
+            ))}
+          </div>
+          <span className="label ml-auto text-muted">docs = public + internal (i) · click a card for all lines and evidence</span>
+        </div>
+      </Reveal>
+      <div className="mt-6 grid gap-5 md:grid-cols-2">
+        {sorted.map((c, i) => {
+          const isOpen = open === c.eid;
+          return (
+            <Reveal key={c.eid} delay={Math.min(60 * (i % 8), 420)}>
+              <article className="card" data-eid={c.eid}>
+                <div className="flex items-baseline gap-3">
+                  <h3>{c.name}</h3>
+                  <span className="label ml-auto">{c.kind === "product_type" ? "product" : "application"} · {c.docs_public}+{c.docs_internal}i docs · {c.maturity}</span>
+                </div>
+                <p className="text-xs text-muted">{c.customers.length ? `markets: ${c.customers.slice(0, 3).join("; ")}` : "markets: unspecified"}</p>
+                {LINES.map((L) => {
+                  const lines = c.lines[L.key] || [];
+                  if (!lines.length) return null;
+                  const shown = isOpen ? lines : lines.slice(0, L.n);
+                  return (
+                    <div className="row" data-layer={L.layer} key={L.key}>
+                      <span className="lbl">{L.label}</span>
+                      <div className="text-xs leading-relaxed">
+                        {shown.map((ln, j) => (<div key={j} className="text-body">{isOpen ? ln : clean(ln).slice(0, 200) + (clean(ln).length > 200 ? "…" : "")}</div>))}
+                        {!isOpen && lines.length > L.n && <div className="text-muted">+{lines.length - L.n} more</div>}
+                      </div>
+                    </div>
+                  );
+                })}
+                <div className="row"><span className="lbl">evidence</span>
+                  <div className="text-xs">
+                    <button className="cursor-pointer text-muted underline-offset-2 hover:text-ink hover:underline" onClick={() => setOpen(isOpen ? null : c.eid)}>
+                      {isOpen ? "show less ▲" : "show every line with its source ids ▼"}
+                    </button>
                   </div>
                 </div>
-              ))}
-              <Rows rows={c.what} label="what · offerings" layer="what" />
-              {c.timing.slice(0, 3).map((t) => (
-                <div className="row" data-layer="what" key={t.subject + t.attribute}>
-                  <span className="lbl">timing</span>
-                  <div className="chain text-xs">
-                    <span className="text-ink">{t.subject}</span> · {t.attribute}: {t.chain.map((f, j) => (
-                      <span key={f.fid}>{j > 0 ? " → " : ""}{f.value}{f.unit && !f.value.includes(f.unit) ? ` ${f.unit}` : ""}{f.valid != null ? ` @${f.valid.toFixed(1)}` : ""} <small className="text-muted">({f.stated.slice(0, 7)}, {f.modality}{f.status !== "new" ? `, ${f.status}` : ""})</small></span>
-                    ))}
-                  </div>
-                </div>
-              ))}
-              <Rows rows={c.how} label="how · capabilities" layer="how" />
-              <Rows rows={c.resource} label="resources" layer="resource" />
-              {c.links_k4.length > 0 && (
-                <div className="row" data-layer="how"><span className="lbl">links</span>
-                  <div className="text-xs">{c.links_k4.slice(0, 4).map((l, j) => (<div key={j}>{l.src} <small className="text-muted">—{l.rel}→</small> {l.dst}</div>))}</div>
-                </div>
-              )}
-              <div className="row"><span className="lbl">evidence</span>
-                <div className="text-xs">
-                  <button className="cursor-pointer text-muted underline-offset-2 hover:text-ink hover:underline" onClick={() => setOpen(open === c.id ? null : c.id)}>
-                    {Object.keys(c.evidence).length} source passages {open === c.id ? "▲" : "▼"}
-                  </button>
-                  {open === c.id && (
-                    <ul className="mt-2 space-y-2">
-                      {Object.entries(c.evidence).slice(0, 12).map(([pid, e]) => (
-                        <li key={pid} className="border-l border-hairline pl-3 text-body"><span className="label mr-2">{e.date} · {e.source_type}{e.synthetic ? " · internal" : ""}</span>{e.text}</li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              </div>
-            </article>
-          </Reveal>
-        ))}
+              </article>
+            </Reveal>
+          );
+        })}
       </div>
       <div className="mt-10 flex items-center gap-4">
         <span className="h-px w-10 bg-hairline" aria-hidden="true" />
-        <button className="btn" data-primary="true" onClick={onNext}>Let the agent build the roadmap →</button>
+        <button className="btn" data-primary="true" onClick={onNext}>Let the models choose and the agent build the roadmap →</button>
       </div>
     </section>
   );

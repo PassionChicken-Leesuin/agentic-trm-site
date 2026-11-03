@@ -9,6 +9,7 @@ import Upload from "./Upload";
 import Build, { type Source } from "./Build";
 import Cards from "./Cards";
 import RoadmapView, { type Roadmaps, type Selection, type CardV2 } from "./RoadmapView";
+import type { Candidates } from "./Cards";
 import { isStage, type Stage } from "./views";
 import { DEFAULT_RUN, loadEvents, loadJSON, loadMeta, serverAvailable, type Meta } from "@/lib/data";
 
@@ -29,6 +30,7 @@ export default function App() {
   const [roadmapsV2, setRoadmapsV2] = useState<Roadmaps | null>(null);
   const [selection, setSelection] = useState<Selection | null>(null);
   const [cardsV2, setCardsV2] = useState<CardV2[]>([]);
+  const [candidates, setCandidates] = useState<Candidates | null>(null);
 
   const go = useCallback((s: Stage) => {
     setReached((r) => new Set([...r, s]));
@@ -52,6 +54,7 @@ export default function App() {
     loadJSON<Roadmaps>(DEFAULT_RUN, "roadmaps_v2.json").then((r) => r && setRoadmapsV2(r));
     loadJSON<Selection>(DEFAULT_RUN, "selection.json").then((r) => r && setSelection(r));
     loadJSON<CardV2[]>(DEFAULT_RUN, "cards_v2.json").then((r) => r && setCardsV2(r));
+    loadJSON<Candidates>(DEFAULT_RUN, "candidates.json").then((r) => r && setCandidates(r));
     // 깊은 링크 ?stage=build — 준비된 문서로 바로 시작 (다음 틱에서, 렌더 중 갱신이 아니게)
     const t = setTimeout(() => { if (new URLSearchParams(window.location.search).get("stage") === "build") void startPrepared(); }, 0);
     return () => clearTimeout(t);
@@ -81,7 +84,7 @@ export default function App() {
           {stage === "build" && !source && (
             <div className="flex items-center gap-3 text-sm text-muted"><span className="spin" aria-hidden="true" />Loading the recorded session (180 documents, ~9 MB of events)…</div>
           )}
-          {stage === "cards" && <Cards cards={cardsV2} onNext={() => go("roadmap")} />}
+          {stage === "cards" && <Cards cards={cardsV2} candidates={candidates} onNext={() => go("roadmap")} />}
           {stage === "roadmap" && <RoadmapView data={roadmaps} v2={roadmapsV2} selection={selection} cards={cardsV2} serverOk={serverOk} />}
         </div>
       </main>

@@ -1,23 +1,50 @@
 /**
  * 데이터 출처 두 가지.
  *   static — public/data/<run>/ 의 파일을 읽어 사건을 재생한다 (Vercel 등 정적 배포).
- *   server — NEXT_PUBLIC_API 가 가리키는 FastAPI(viz.server) 에서 SSE 로 받는다 (업로드 모드).
+ *   server — NEXT_PUBLIC_API 가 가리키는 FastAPI(viz.server) 에서 받는다 (업로드 모드).
+ *            문서를 올리면 서버가 작업(run)을 만들고, 사건은 SSE 로, 카드·선정·로드맵은 /api/v2/runs/<run>/site/<file> 로 온다.
  */
 export type KbEvent = { seq: number; ts: string; type: string } & Record<string, unknown>;
 
 export type Doc = { id: string; title: string; date: string; source_type: string; is_synthetic: boolean };
+export type Profile = { company: string; cutoff: string; horizon: [number, number]; source: "demo" | "upload"; min_year: number | null };
 export type Meta = {
   run: string;
   documents: Doc[];
   planned_total: number | null;
+  profile?: Profile;
   entities: Record<string, { name: string; layer?: string | null }>;
   tree: { areas: { name: string; theme_ids: string[]; trend?: string; shares?: { year: number; share: number }[] }[]; root?: unknown } | null;
   glossary: { name: string; type: string; aliases: string[]; unit?: string | null; definition: string; status: string; count: number }[];
   stats: Record<string, unknown>;
 };
 
+/** 어느 run 의 데이터를 어디서 읽는가. static 은 public/data/<run>, server 는 업로드 작업의 run. */
+export type RunRef = { kind: "static"; run: string } | { kind: "server"; run: string };
+
+export type JobState = {
+  run: string;
+  status: "queued" | "running" | "done" | "error";
+  stage: string;
+  message: string;
+  progress: { done: number; total: number };
+  stages: Record<string, { started: string; ended?: string; seconds?: number }>;
+  cost_usd: number;
+  error: string | null;
+  company?: string;
+  passages?: number;
+  cards?: number;
+  seconds?: number;
+  documents?: (Doc & { original_name: string; n_chars: number })[];
+};
+
 export const API = process.env.NEXT_PUBLIC_API ?? "";
 export const DEFAULT_RUN = process.env.NEXT_PUBLIC_RUN ?? "ionq";
+export const STATIC_REF: RunRef = { kind: "static", run: DEFAULT_RUN };
+
+function url(ref: RunRef, name: string): string {
+  return ref.kind === "server" ? `${API}/api/v2/runs/${ref.run}/site/${name}` : `/data/${ref.run}/${name}`;
+}
 
 export async function serverAvailable(): Promise<boolean> {
   if (!API) return false;
@@ -29,13 +56,14 @@ export async function serverAvailable(): Promise<boolean> {
   }
 }
 
-export async function loadMeta(run = DEFAULT_RUN): Promise<Meta> {
-  const r = await fetch(`/data/${run}/meta.json`, { cache: "no-store" });
+export async function loadMeta(ref: RunRef = STATIC_REF): Promise<Meta> {
+  const r = await fetch(url(ref, "meta.json"), { cache: "no-store" });
+  if (!r.ok) throw new Error(`meta.json: ${r.status}`);
   return r.json();
 }
 
-export async function loadEvents(run = DEFAULT_RUN): Promise<KbEvent[]> {
-  const r = await fetch(`/data/${run}/events.jsonl`, { cache: "no-store" });
+export async function loadEvents(ref: RunRef = STATIC_REF): Promise<KbEvent[]> {
+  const r = await fetch(url(ref, "events.jsonl"), { cache: "no-store" });
   const text = await r.text();
   return text
     .split("\n")
@@ -43,13 +71,49 @@ export async function loadEvents(run = DEFAULT_RUN): Promise<KbEvent[]> {
     .map((l) => JSON.parse(l) as KbEvent);
 }
 
-export async function loadJSON<T>(run: string, name: string): Promise<T | null> {
+export async function loadJSON<T>(ref: RunRef, name: string): Promise<T | null> {
   try {
-    const r = await fetch(`/data/${run}/${name}`, { cache: "no-store" });
+    const r = await fetch(url(ref, name), { cache: "no-store" });
     if (!r.ok) return null;
     return (await r.json()) as T;
   } catch {
     return null;
+  }
+}
+
+/** 문서를 올려 작업을 만든다. 서버가 파일을 변환하고(LLM 없음) 바로 파이프라인을 띄운다. 오류 메시지는 서버의 detail 을 그대로 전한다. */
+export async function createJob(company: string, files: File[], opts: { descriptor?: string; brief?: string; internal?: string[] } = {}): Promise<JobState> {
+  const fd = new FormData();
+  fd.set("company", company);
+  if (opts.descriptor) fd.set("descriptor", opts.descriptor);
+  if (opts.brief) fd.set("brief", opts.brief);
+  if (opts.internal?.length) fd.set("internal", opts.internal.join("\n"));
+  files.forEach((f) => fd.append("files", f, f.name));
+  const r = await fetch(`${API}/api/v2/jobs`, { method: "POST", body: fd });
+  if (!r.ok) {
+    let detail = `${r.status}`;
+    try { detail = (await r.json()).detail ?? detail; } catch { /* keep status */ }
+    throw new Error(String(detail));
+  }
+  return r.json();
+}
+
+export async function getJob(run: string): Promise<JobState | null> {
+  try {
+    const r = await fetch(`${API}/api/v2/jobs/${run}`, { cache: "no-store" });
+    return r.ok ? r.json() : null;
+  } catch {
+    return null;
+  }
+}
+
+/** 작업이 끝날 때까지 기다린다 (done 또는 error). onTick 으로 중간 상태를 알린다. */
+export async function waitJob(run: string, onTick?: (s: JobState) => void, intervalMs = 3000): Promise<JobState | null> {
+  for (;;) {
+    const s = await getJob(run);
+    if (s) onTick?.(s);
+    if (s && (s.status === "done" || s.status === "error")) return s;
+    await new Promise((res) => setTimeout(res, intervalMs));
   }
 }
 

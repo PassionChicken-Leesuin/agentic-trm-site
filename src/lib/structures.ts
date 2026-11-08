@@ -63,7 +63,7 @@ export class StructuresEngine {
   reset() {
     this.LCOL = { why: css("--why"), what: css("--what"), how: css("--how"), resource: css("--resource") };
     this.S = {
-      ents: new Map(), terms: [], passages: 0, byStatus: {}, docsDone: 0, docsTotal: this.S?.docsTotal ?? 0, curDoc: null,
+      ents: new Map(), pl: new Map(), terms: [], passages: 0, byStatus: {}, docsDone: 0, docsTotal: this.S?.docsTotal ?? 0, curDoc: null,
       doneIds: new Set<string>(), themes: new Map(), areas: new Map(), themeArea: new Map(), opps: new Map(), cells: new Map(), rows: new Map(),
       gnodes: new Map(), gedges: new Map(), facts: new Map(), subjects: new Map(), share: {},
     };
@@ -84,10 +84,13 @@ export class StructuresEngine {
     else if (name && e.name === id) e.name = name;
     return e;
   }
+  /** 관계 그래프의 대상(둥근 사각) 한 변 길이: 관계 수에 따라 7~17px */
+  private nsz(d: any): number { return 7 + Math.min(10, Math.sqrt(d.deg || 1) * 2.5); }
   private dominant(e: any): string | null { const l = Object.entries(e?.layers || {}).sort((a: any, b: any) => b[1] - a[1])[0]; return l ? l[0] : null; }
   private log(cls: string, msg: string) {
     const d = document.createElement("div");
-    d.innerHTML = `<span class="t">${this.lastSeq}</span><span class="${cls}">${esc(msg)}</span>`;
+    const chip: Record<string, string> = { k0: "glossary", k1: "evidence", k2: "themes", k3: "candidates", k4: "relations", k5: "time" };
+    d.innerHTML = `<span class="t">${this.lastSeq}</span>${chip[cls] ? `<span class="k">${chip[cls]}</span>` : ""}<span class="${cls === "m" ? "m" : "msg"}">${esc(msg)}</span>`;
     this.els.log.prepend(d);
     while (this.els.log.children.length > 250) this.els.log.lastChild!.remove();
   }
@@ -126,8 +129,8 @@ export class StructuresEngine {
       case "time.fact": this.onFact(E); break;
       case "entity.merged": this.log("m", `merged subjects → ${E.name} ← ${(E.merged || []).join(", ")} — ${E.reason || ""}`); break;
       case "tree.theme_merged": this.log("k2", `merged themes → ${E.name} (+${E.merged}) — ${E.reason || ""}`); break;
-      case "tree.theme_summarized": { const t = S.themes.get(E.tid); if (t) t.trend = E.trend; break; }
-      case "tree.area_built": S.areas.set(E.name, E); this.log("k2", `area: ${E.name} (${E.themes} themes, ${E.trend})`); this.flash("k2"); this.renderTree(); break;
+      case "tree.theme_summarized": { const t = S.themes.get(E.tid); if (t && E.docs_per_year) t.dpy = E.docs_per_year; break; }   // 추세 라벨은 쓰지 않음 (2026-11-03 결정)
+      case "tree.area_built": S.areas.set(E.name, E); this.log("k2", `area: ${E.name} (${E.themes} themes)`); this.flash("k2"); this.renderTree(); break;
       case "tree.built": this.log("k2", `tree complete: ${E.areas} areas, ${E.themes} themes`); this.renderTree(); break;
       case "grid.started":
         E.columns.forEach((c: any) => { const o = S.opps.get(c.eid) || { eid: c.eid, name: c.name, n: 0, customers: new Set(), offerings: new Set() }; o.tier = c.tier; o.support = c.support; S.opps.set(c.eid, o); });
@@ -136,6 +139,7 @@ export class StructuresEngine {
       case "grid.built": break;
       case "time.relinked": this.log("k5", `chains relinked: update ${E.update}, duplicate ${E.duplicate}, conflict ${E.conflict}`); break;
       case "error": this.log("m", `error ${E.structure || ""}: ${E.msg}`); break;
+      case "job.stage": this.log("m", `[${E.stage}] ${E.msg || ""}`); break;   // 업로드 작업의 단계 알림 (서버 모드)
     }
     this.renderStats();
   }
@@ -159,7 +163,9 @@ export class StructuresEngine {
     (ev.entities || []).forEach((id: string) => { const e = this.ent(id); (ev.layers || []).forEach((l: string) => (e.layers[l] = (e.layers[l] || 0) + 1)); });
     const row = document.createElement("div");
     row.className = "ps" + (ev.status === "duplicate" ? " dup" : ev.status === "irrelevant" ? " irr" : ""); row.dataset.pid = ev.pid;
-    row.innerHTML = `<div class="meta">${(ev.layers || []).map((l: string) => `<span class="tag ${l}">${l}</span>`).join("")}${(ev.systems || []).map((s: string) => `<span class="sys">${s}</span>`).join("")}<span class="date">${ev.status}${ev.synthetic ? " · internal" : ""}</span></div><div class="txt" title="${esc(ev.text)}">${esc(ev.text)}</div>`;
+    S.pl.set(ev.pid, ev.layers || []);
+    const stripe = `<span class="stripe">${(ev.layers || []).map((l: string) => `<i style="background:var(--${l})"></i>`).join("")}</span>`;
+    row.innerHTML = stripe + `<div class="meta">${(ev.layers || []).map((l: string) => `<span class="tag ${l}">${l}</span>`).join("")}${(ev.systems || []).map((s: string) => `<span class="sys">${s}</span>`).join("")}<span class="date">${ev.synthetic ? `<i class="int" title="internal document"></i>internal · ` : ""}${ev.status}</span></div><div class="txt" title="${esc(ev.text)}">${esc(ev.text)}</div>`;
     this.els.passages.appendChild(row); while (this.els.passages.children.length > 10) this.els.passages.firstChild!.remove();
     if (ev.systems?.length) {
       const why = Object.entries(ev.reasons || {}).map(([s, r]) => `${s}: ${r}`).join(" | ");
@@ -172,13 +178,11 @@ export class StructuresEngine {
   private onAssigned(ev: any) {
     let t = this.S.themes.get(ev.tid); if (!t) { t = { id: ev.tid, name: ev.theme, count: 0 }; this.S.themes.set(ev.tid, t); }
     t.count++; t.fresh = true; t.emph = ev.emphasis; this.flash("k2");
+    t.layers = t.layers || {}; (this.S.pl.get(ev.pid) || []).forEach((l: string) => (t.layers[l] = (t.layers[l] || 0) + 1));
     clearTimeout(this.timers.tree); this.timers.tree = setTimeout(() => this.renderTree(), 120);
   }
-  private trendColor(tr: string | undefined, emph: string | undefined) {
-    const how = css("--how"), why = css("--why"), what = css("--what"), muted = css("--muted");
-    if (tr === "rising") return how; if (tr === "declining") return why; if (tr === "new") return what; if (tr === "stable") return muted;
-    if (emph === "expanding") return how; if (emph === "declining") return why; return css("--hairline");
-  }
+  /** 주제 원의 색 = 그 주제 문장들이 가장 많이 걸친 로드맵 층 (통일안: 색은 층에만). 추세는 표시하지 않는다. */
+  private themeColor(t: any) { const l = this.dominant(t); return (l && this.LCOL[l]) || css("--hairline"); }
   renderTree() {
     const S = this.S, svg = d3.select(this.els.s2), box = this.els.s2.getBoundingClientRect(), W = box.width, H = box.height;
     if (!W || !S.themes.size) return;
@@ -197,9 +201,9 @@ export class StructuresEngine {
     ge.append("circle").attr("r", 0); ge.append("text").attr("text-anchor", "middle").attr("dy", 3);
     const all = ge.merge(g as any);
     all.classed("new", (d: any) => d.data.fresh).attr("data-tid", (d: any) => d.data.id)
-      .on("mousemove", (e: MouseEvent, d: any) => this.tip(e, `<b>${esc(d.data.name)}</b><br>${d.data.count} passages${d.data.trend ? " · " + d.data.trend : ""}${S.themeArea.get(d.data.id) ? "<br>area: " + esc(S.themeArea.get(d.data.id)) : ""}`)).on("mouseleave", this.hideTip);
+      .on("mousemove", (e: MouseEvent, d: any) => this.tip(e, `<b>${esc(d.data.name)}</b><br>${d.data.count} passages${this.dominant(d.data) ? " · mostly " + this.dominant(d.data) : ""}${d.data.dpy ? "<br>documents per year: " + d.data.dpy.map((r: number[]) => `${r[0]} ${r[1]}/${r[2]}`).join(", ") : ""}${S.themeArea.get(d.data.id) ? "<br>area: " + esc(S.themeArea.get(d.data.id)) : ""}`)).on("mouseleave", this.hideTip);
     all.transition().duration(300).attr("transform", (d: any) => `translate(${d.x},${d.y})`);
-    all.select("circle").transition().duration(300).attr("r", (d: any) => d.r).attr("fill", (d: any) => this.trendColor(d.data.trend, d.data.emph)).attr("fill-opacity", 0.55);
+    all.select("circle").transition().duration(300).attr("r", (d: any) => d.r).attr("fill", (d: any) => this.themeColor(d.data)).attr("fill-opacity", 0.55);
     all.select("text").text((d: any) => (d.r > 18 ? d.data.name.slice(0, Math.max(4, d.r / 3.2)) : "")).attr("font-size", (d: any) => Math.min(11, Math.max(8, d.r / 3))).attr("fill", css("--ink"));
     g.exit().remove();
     S.themes.forEach((t: any) => (t.fresh = false));
@@ -295,14 +299,14 @@ export class StructuresEngine {
     const ns = g4.nodes.selectAll("g.node").data(nodes, (d: any) => d.id);
     const ne = ns.enter().append("g").attr("class", "node").attr("data-eid", (d: any) => d.id)
       .call(d3.drag<any, any>().on("start", (e, d) => { d.fx = d.x; d.fy = d.y; }).on("drag", (e, d) => { d.fx = e.x; d.fy = e.y; this.sim.alpha(0.3).restart(); }).on("end", (e, d) => { d.fx = d.fy = null; }));
-    ne.append("circle"); ne.append("text").attr("dx", 9).attr("dy", 3);
+    ne.append("rect"); ne.append("text").attr("dy", 3);
     const na = ne.merge(ns);
-    na.classed("new", (d: any) => d.fresh).select("circle").attr("r", (d: any) => 4 + Math.min(9, Math.sqrt(d.deg) * 2)).attr("fill", (d: any) => this.LCOL[this.dominant(S.ents.get(d.id)) || ""] || css("--muted")).attr("fill-opacity", 0.75);
-    na.select("text").text((d: any) => this.ename(d.id).slice(0, 26));
+    na.classed("new", (d: any) => d.fresh).select("rect").attr("x", (d: any) => -this.nsz(d) / 2).attr("y", (d: any) => -this.nsz(d) / 2).attr("width", (d: any) => this.nsz(d)).attr("height", (d: any) => this.nsz(d)).attr("rx", 3).attr("fill", (d: any) => this.LCOL[this.dominant(S.ents.get(d.id)) || ""] || css("--muted")).attr("fill-opacity", 0.75);
+    na.select("text").attr("dx", (d: any) => this.nsz(d) / 2 + 4).text((d: any) => this.ename(d.id).slice(0, 26));
     na.on("mousemove", (e: MouseEvent, d: any) => this.tip(e, `<b>${esc(this.ename(d.id))}</b><br>${d.deg} relations · layer ${this.dominant(S.ents.get(d.id)) || "?"}`)).on("mouseleave", this.hideTip);
     ns.exit().remove();
     const es = g4.edges.selectAll("line").data(edges, (d: any) => d.id);
-    es.enter().append("line").attr("class", "edge").attr("marker-end", "url(#arrow4)").merge(es).classed("new", (d: any) => d.fresh); es.exit().remove();
+    es.enter().append("line").attr("class", "edge").attr("marker-end", "url(#arrow4)").merge(es).attr("data-rel", (d: any) => d.rel).classed("new", (d: any) => d.fresh); es.exit().remove();
     const ls = g4.labels.selectAll("text").data(edges, (d: any) => d.id);
     ls.enter().append("text").attr("class", "edge-label").attr("text-anchor", "middle").text((d: any) => d.rel).merge(ls); ls.exit().remove();
     const bb = this.els.s4.getBoundingClientRect();
@@ -333,27 +337,37 @@ export class StructuresEngine {
     const S = this.S, svg = d3.select(this.els.s5), box = this.els.s5.getBoundingClientRect(), W = box.width, H = box.height;
     if (!W || !S.facts.size) return;
     svg.selectAll("*").remove();
-    const MOD: Record<string, string> = { achieved: css("--how"), current: css("--muted"), planned: css("--what"), forecast: css("--what"), required: css("--resource"), vision: css("--k0") };
+    // 통일안: 시간 사실은 한 색. 양태는 채움으로 — achieved·current 채움, planned·forecast 빈 기호, required 빈 기호 + 안쪽 점, vision 빈 기호 점선
+    const TF = css("--time-fact"), INK = css("--ink");
+    const FILLED = new Set(["achieved", "current"]);
     const subs: any[] = [...S.subjects.values()].sort((a: any, b: any) => b.n - a.n || b.last - a.last).slice(0, Math.max(3, Math.floor((H - 30) / 22)));
     const left = 140, top = 8, rh = Math.min(26, (H - 30) / subs.length);
-    const x = d3.scaleLinear().domain([2019.5, 2031]).range([left, W - 10]);
-    svg.append("g").attr("class", "axis").attr("transform", `translate(0,${H - 18})`).call(d3.axisBottom(x).tickValues(d3.range(2020, 2031, 1)).tickFormat(d3.format("d")) as any);
-    svg.append("line").attr("x1", x(2024.9)).attr("x2", x(2024.9)).attr("y1", top).attr("y2", H - 18).attr("stroke", css("--hairline")).attr("stroke-dasharray", "3 3");
-    svg.append("text").attr("x", x(2024.9) + 3).attr("y", H - 24).attr("class", "muted").attr("font-size", 9).text("documents end");
+    // 시간축: 프로필(문서 첫 해 ~ 로드맵 끝 해)에서 정한다. 준비된 IonQ 데모는 2020~2030, 업로드 run 은 그 문서의 연도대로.
+    const pr = this.meta?.profile;
+    const y0 = pr?.min_year ?? 2020, y1 = pr?.horizon?.[1] ?? 2030;
+    const cut = pr?.cutoff ? +pr.cutoff.slice(0, 4) + (Math.max(1, +pr.cutoff.slice(5, 7)) - 0.5) / 12 : 2024.9;
+    const x = d3.scaleLinear().domain([y0 - 0.5, y1 + 1]).range([left, W - 10]);
+    svg.append("g").attr("class", "axis").attr("transform", `translate(0,${H - 18})`).call(d3.axisBottom(x).tickValues(d3.range(y0, y1 + 1, y1 - y0 > 12 ? 2 : 1)).tickFormat(d3.format("d")) as any);
+    svg.append("line").attr("x1", x(cut)).attr("x2", x(cut)).attr("y1", top).attr("y2", H - 18).attr("stroke", css("--hairline")).attr("stroke-dasharray", "3 3");
+    svg.append("text").attr("x", x(cut) + 3).attr("y", H - 24).attr("class", "muted").attr("font-size", 9).text("documents end");
     const rowY = new Map(subs.map((s, i) => [s.eid, top + i * rh + rh / 2]));
     const rg = svg.append("g");
-    subs.forEach((s) => { const y = rowY.get(s.eid)!; rg.append("line").attr("class", "rowline").attr("x1", left).attr("x2", W - 10).attr("y1", y).attr("y2", y); rg.append("text").attr("x", 6).attr("y", y + 3.5).attr("class", "rowlbl").attr("data-eid", s.eid).text(this.ename(s.eid).slice(0, 22)); });
+    subs.forEach((s) => { const y = rowY.get(s.eid)!; rg.append("line").attr("class", "rowline").attr("x1", left).attr("x2", W - 10).attr("y1", y).attr("y2", y); rg.append("text").attr("x", 16).attr("y", y + 3.5).attr("class", "rowlbl").attr("data-eid", s.eid).text(this.ename(s.eid).slice(0, 20));
+      rg.append("rect").attr("x", 4).attr("y", y - 4).attr("width", 8).attr("height", 8).attr("rx", 2).attr("fill", this.LCOL[this.dominant(S.ents.get(s.eid)) || ""] || css("--muted")); });
     const facts: any[] = [...S.facts.values()].filter((f: any) => rowY.has(f.eid));
     const off = (f: any) => { let h = 0; for (const ch of String(f.attribute)) h = (h * 31 + ch.charCodeAt(0)) % 7; return (h - 3) * 1.6; };
-    const pos = (f: any) => ({ x: x(f.valid != null ? Math.max(2019.6, Math.min(2030.9, +f.valid)) : 2019.7), y: rowY.get(f.eid)! + off(f) });
+    const pos = (f: any) => ({ x: x(f.valid != null ? Math.max(y0 - 0.4, Math.min(y1 + 0.9, +f.valid)) : y0 - 0.3), y: rowY.get(f.eid)! + off(f) });
     d3.group(facts, (f: any) => f.eid + "|" + f.attribute).forEach((fs: any[]) => {
       fs.sort((a, b) => a.seq - b.seq);
       for (let i = 1; i < fs.length; i++) { const a = pos(fs[i - 1]), b = pos(fs[i]); svg.append("path").attr("class", "chain" + (fs[i].status === "update" ? " update" : fs[i].status === "conflict" ? " conflict" : "")).attr("d", `M${a.x},${a.y} C${(a.x + b.x) / 2},${a.y - 10} ${(a.x + b.x) / 2},${b.y - 10} ${b.x},${b.y}`); }
     });
     svg.append("g").selectAll("path").data(facts, (d: any) => d.fid).join("path").attr("class", (d: any) => "fact" + (d.fresh ? " new" : "")).attr("data-eid", (d: any) => d.eid)
       .attr("d", (d: any) => d3.symbol().type(d.family === "lifecycle" ? d3.symbolSquare : d.family === "milestone" ? d3.symbolDiamond : d3.symbolCircle).size(d.fresh ? 110 : 70)())
-      .attr("transform", (d: any) => { const p = pos(d); return `translate(${p.x},${p.y})`; }).attr("fill", (d: any) => MOD[d.modality] || css("--muted")).attr("fill-opacity", (d: any) => (d.valid == null ? 0.35 : 0.9))
+      .attr("transform", (d: any) => { const p = pos(d); return `translate(${p.x},${p.y})`; }).attr("fill", (d: any) => (FILLED.has(d.modality) ? TF : "none")).style("stroke", (d: any) => (d.fresh ? INK : TF))
+      .style("stroke-dasharray", (d: any) => (d.modality === "vision" ? "2 2" : null)).attr("opacity", (d: any) => (d.valid == null ? 0.45 : 1))
       .on("mousemove", (e: MouseEvent, d: any) => this.tip(e, `<b>${esc(d.name)}</b> · ${esc(d.attribute)} (${d.family})<br>value <b>${esc(d.value)}</b>${d.valid != null ? " · valid " + (+d.valid).toFixed(2) : " · no time"}<br>${d.modality} · ${d.status}${d.related ? " of " + d.related : ""}`)).on("mouseleave", this.hideTip);
+    svg.append("g").selectAll("circle").data(facts.filter((f: any) => f.modality === "required")).join("circle").attr("r", 1.7).attr("fill", TF)
+      .attr("transform", (d: any) => { const p = pos(d); return `translate(${p.x},${p.y})`; });
     const lab = svg.append("g");
     facts.filter((f) => f.fresh || f.family === "metric").forEach((f) => { const p = pos(f); lab.append("text").attr("x", p.x + 6).attr("y", p.y - 6).attr("font-size", 9).attr("class", f.fresh ? "" : "muted").text(String(f.value).slice(0, 14)); });
     S.facts.forEach((f: any) => (f.fresh = false));
@@ -370,7 +384,10 @@ export class StructuresEngine {
     if (targets.length) this.log("m", `shared subject: ${this.ename(eid)} ↔ ${targets.length} other structure(s)`);
   }
   private beam(fromEl: Element, toEl: Element, color: string, shared = false) {
+    if (!fromEl.isConnected || !toEl.isConnected) return;
     const main = this.els.root.getBoundingClientRect(), a = fromEl.getBoundingClientRect(), b = toEl.getBoundingClientRect();
+    // 숨은 패널(display:none)·화면 밖 요소는 크기가 0 이라 좌표가 왼쪽 위 구석이 된다 → 그리지 않음
+    if ((a.width === 0 && a.height === 0) || (b.width === 0 && b.height === 0)) return;
     const x1 = a.left + a.width / 2 - main.left, y1 = a.top + a.height / 2 - main.top, x2 = b.left + b.width / 2 - main.left, y2 = b.top + b.height / 2 - main.top;
     const p = d3.select(this.els.links).append("path").attr("class", "beam").attr("stroke", color).attr("d", `M${x1},${y1} C${x1},${(y1 + y2) / 2} ${x2},${(y1 + y2) / 2} ${x2},${y2}`);
     const L = (p.node() as SVGPathElement).getTotalLength(); p.attr("stroke-dasharray", L).attr("stroke-dashoffset", L);

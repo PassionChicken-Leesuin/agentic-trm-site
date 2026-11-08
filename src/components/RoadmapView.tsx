@@ -5,7 +5,9 @@ import * as d3 from "d3";
 import Reveal from "./Reveal";
 
 export type RmNode = { id: string; label: string; layer: "why" | "what" | "how" | "resource"; start?: number | null; end?: number | null; description?: string; evidence_ids?: string[]; flags?: string[] };
-export type Roadmap = { condition: string; model: string; horizon: [number, number]; nodes: RmNode[]; edges: { src: string; dst: string; type: string }[] };
+export type ProvStep = { id: string; card: { eid: string; name: string; selected: boolean } | null; line: string | null; line_name: string | null; structure: string; detail: string;
+  source: { text: string; date: string; type: string; synthetic: boolean; doc_id: string } | null };
+export type Roadmap = { condition: string; model: string; horizon: [number, number]; nodes: RmNode[]; edges: { src: string; dst: string; type: string }[]; provenance?: Record<string, ProvStep[]> };
 export type Evidence = Record<string, { text: string; doc_id: string; date: string; source_type: string; synthetic: boolean }>;
 export type Roadmaps = { initial?: Roadmap; kb?: Roadmap; balanced?: Roadmap; q1?: Roadmap; q2?: Roadmap; q3?: Roadmap; evidence?: Evidence };
 export type StanceKey = "balanced" | "q1" | "q2" | "q3";
@@ -21,7 +23,20 @@ const LABEL: Record<string, string> = { why: "Why · market & drivers", what: "W
 const STANCE_ORDER: StanceKey[] = ["balanced", "q1", "q2", "q3"];
 const STANCE_SHORT: Record<StanceKey, string> = { balanced: "All three equally", q1: "Why go — strongest demand", q2: "Where we are — strongest position", q3: "Can we get there — clearest path" };
 
-function Chart({ rm, onSelect, selected }: { rm: Roadmap; onSelect: (n: RmNode | null) => void; selected: RmNode | null }) {
+/** 근거 하나(id)당 한 묶음: 그 id 가 들어 있던 카드들 + 지식 구조 + 원문 (같은 원문을 반복하지 않음) */
+function groupProv(steps: ProvStep[]) {
+  const m = new Map<string, { id: string; cards: { name: string; line: string; selected: boolean }[]; structure: string; detail: string; source: ProvStep["source"] }>();
+  steps.forEach((st) => {
+    let g = m.get(st.id);
+    if (!g) { g = { id: st.id, cards: [], structure: st.structure, detail: st.detail, source: st.source }; m.set(st.id, g); }
+    if (st.card && !g.cards.some((c) => c.name === st.card!.name)) g.cards.push({ name: st.card.name, line: st.line_name || "", selected: st.card.selected });
+  });
+  return [...m.values()];
+}
+
+const FLAG: Record<string, [string, string]> = { revised: ["↻", "var(--resource)"], conflict: ["!", "var(--conflict)"], infeasible: ["✕", "var(--muted)"] };
+
+function Chart({ rm, onSelect, selected, evidence }: { rm: Roadmap; onSelect: (n: RmNode | null) => void; selected: RmNode | null; evidence: Evidence }) {
   const ref = useRef<SVGSVGElement>(null);
   useEffect(() => {
     const svg = d3.select(ref.current!); svg.selectAll("*").remove();
@@ -46,13 +61,20 @@ function Chart({ rm, onSelect, selected }: { rm: Roadmap; onSelect: (n: RmNode |
     svg.attr("height", y + 30);
     LAYERS.forEach((l) => { const ly = laneY.get(l)!; svg.append("line").attr("class", "rm-lane").attr("x1", 0).attr("x2", W).attr("y1", ly - 8).attr("y2", ly - 8); svg.append("text").attr("x", 0).attr("y", ly + 12).attr("class", "label").attr("font-size", 10).attr("fill", `var(--${l})`).text(LABEL[l]); });
     svg.append("g").attr("class", "axis").attr("transform", `translate(0,${y})`).call(d3.axisBottom(x).tickValues(d3.range(h0, h1 + 1, 1)).tickFormat(d3.format("d")) as never);
-    rm.edges.forEach((e) => { const a = posOf.get(e.src), b = posOf.get(e.dst); if (!a || !b) return; svg.append("path").attr("class", "rm-edge").attr("d", `M${a.x + a.w / 2},${a.y + 22} C${a.x + a.w / 2},${(a.y + b.y) / 2 + 11} ${b.x + b.w / 2},${(a.y + b.y) / 2 + 11} ${b.x + b.w / 2},${b.y}`); });
+    rm.edges.forEach((e) => { const a = posOf.get(e.src), b = posOf.get(e.dst); if (!a || !b) return; svg.append("path").attr("class", "rm-edge").attr("data-type", e.type).attr("d", `M${a.x + a.w / 2},${a.y + 22} C${a.x + a.w / 2},${(a.y + b.y) / 2 + 11} ${b.x + b.w / 2},${(a.y + b.y) / 2 + 11} ${b.x + b.w / 2},${b.y}`); });
     const g = svg.append("g").selectAll("g").data(rm.nodes).join("g").attr("class", (n) => "rm-node" + (selected?.id === n.id ? " selected" : "")).attr("data-layer", (n) => n.layer).attr("data-evidence", (n) => (n.evidence_ids?.length ? 1 : 0))
       .attr("transform", (n) => { const p = posOf.get(n.id)!; return `translate(${p.x},${p.y})`; }).style("cursor", "pointer").on("click", (_, n) => onSelect(n));
     g.append("rect").attr("width", (n) => posOf.get(n.id)!.w).attr("height", 22).attr("rx", 0);
     g.append("text").attr("x", 6).attr("y", 14.5).text((n) => { const w = posOf.get(n.id)!.w; return n.label.length > w / 6 ? n.label.slice(0, Math.max(4, w / 6 - 1)) + "…" : n.label; });
-    g.append("title").text((n) => `${n.label}\n${n.start ?? ""}–${n.end ?? ""}\n${n.description || ""}\nevidence: ${(n.evidence_ids || []).length}`);
-  }, [rm, selected, onSelect]);
+    g.append("title").text((n) => `${n.label}\n${n.start ?? ""}–${n.end ?? ""}\n${n.description || ""}\nevidence: ${(n.evidence_ids || []).length}${n.flags?.length ? "\nflags: " + n.flags.join(", ") : ""}`);
+    // 플래그 기호 (막대 오른쪽 끝)와 내부 문서 근거만 있는 항목의 점 (막대 왼쪽)
+    g.each(function (n) {
+      const w = posOf.get(n.id)!.w, sel = d3.select(this);
+      (n.flags || []).filter((f) => FLAG[f]).forEach((f, i) => sel.append("text").attr("class", "rm-flag").attr("x", w - 8 - i * 12).attr("y", 15.5).attr("text-anchor", "middle").style("fill", FLAG[f][1]).text(FLAG[f][0]));
+      const ids = n.evidence_ids || [];
+      if (ids.length && ids.every((id) => evidence[id]?.synthetic)) sel.append("circle").attr("class", "rm-internal").attr("cx", -5).attr("cy", 11).attr("r", 3);
+    });
+  }, [rm, selected, onSelect, evidence]);
   return <svg ref={ref} className="w-full" />;
 }
 
@@ -171,24 +193,52 @@ export default function RoadmapView({ data, v2, selection, cards, serverOk }: { 
       {phase === "done" && rm && (
         <div className="mt-10 view-enter">
           <div className="mb-4 flex flex-wrap items-center gap-3">
-            <div className="flex border border-hairline">
-              <button className="label px-4 py-2 data-[on=true]:text-ink" data-on={compare === "stance"} onClick={() => setCompare("stance")}>From the selected cards{hasV2 ? ` · ${STANCE_SHORT[stance]}` : ""}</button>
-              <button className="label border-l border-hairline-soft px-4 py-2 data-[on=true]:text-ink" data-on={compare === "initial"} onClick={() => setCompare("initial")} disabled={!data?.initial}>Without knowledge base (prior only)</button>
+            <div className="flex flex-wrap gap-2" role="tablist" aria-label="Which roadmap to show">
+              <button className="btn" role="tab" aria-selected={compare === "stance"} data-primary={compare === "stance" ? "true" : undefined} onClick={() => setCompare("stance")}>With the knowledge base built by our system</button>
+              <button className="btn" role="tab" aria-selected={compare === "initial"} data-primary={compare === "initial" ? "true" : undefined} onClick={() => setCompare("initial")} disabled={!data?.initial}>Without a knowledge base (model prior only)</button>
             </div>
-            {stats && <span className="label ml-auto">{stats.n} nodes · {stats.edges} edges · {stats.ev} with evidence · {stats.byLayer.map(([l, k]) => `${l} ${k}`).join(" · ")}</span>}
+            {stats && <span className="label ml-auto">{compare === "stance" && hasV2 ? `${STANCE_SHORT[stance]} · ` : ""}{stats.n} nodes · {stats.edges} edges · {stats.ev} with evidence · {stats.byLayer.map(([l, k]) => `${l} ${k}`).join(" · ")}</span>}
           </div>
           <div className="border border-hairline bg-[color-mix(in_oklab,var(--surface-card)_92%,transparent)] p-4">
-            <Chart rm={rm} onSelect={setSel} selected={sel} />
+            <Chart rm={rm} onSelect={setSel} selected={sel} evidence={evidence} />
+            <div className="rm-legend" aria-label="Legend">
+              <span><svg width="26" height="8"><line x1="0" y1="4" x2="26" y2="4" stroke="var(--muted)" /></svg>requires</span>
+              <span><svg width="26" height="8"><line x1="0" y1="4" x2="26" y2="4" stroke="var(--muted)" strokeDasharray="6 3" /></svg>enables</span>
+              <span><svg width="26" height="8"><line x1="0" y1="4" x2="26" y2="4" stroke="var(--muted)" strokeDasharray="2 3" /></svg>drives</span>
+              <span><svg width="26" height="8"><line x1="0" y1="4" x2="26" y2="4" stroke="var(--muted)" strokeWidth="0.8" /></svg>precedes</span>
+              <span><svg width="26" height="12"><rect x="1" y="1" width="24" height="10" rx="3" fill="none" stroke="var(--muted)" strokeDasharray="3 3" /></svg>no evidence cited</span>
+              <span><svg width="8" height="8"><circle cx="4" cy="4" r="3" fill="var(--internal)" /></svg>internal evidence only</span>
+              <span><b style={{ color: "var(--resource)" }}>↻</b> revised · <b style={{ color: "var(--conflict)" }}>!</b> conflict · <b>✕</b> infeasible</span>
+            </div>
           </div>
           {sel && (
             <div className="mt-4 border-l border-ink pl-4">
               <p className="label" style={{ color: `var(--${sel.layer})` }}>{sel.layer} · {sel.start ?? "?"}–{sel.end ?? "?"}{sel.flags?.length ? ` · ${sel.flags.join(", ")}` : ""}</p>
               <h3 className="display mt-1 text-xl">{sel.label}</h3>
               <p className="mt-2 max-w-2xl text-sm text-body">{sel.description}</p>
+              {rm?.provenance?.[sel.id]?.length ? (
+                <div className="mt-4">
+                  <p className="label">Why this item is on the roadmap</p>
+                  <ol className="prov mt-2">
+                    {groupProv(rm.provenance[sel.id]).map((g) => (
+                      <li key={g.id}>
+                        <div className="prov-step"><span className="prov-k">opportunity card</span>
+                          <div>{g.cards.length ? g.cards.map((c, i) => (
+                            <span key={c.name + i} className="prov-card"><b>{c.name}</b><span className="text-muted"> · {c.line}{c.selected ? "" : " · not in the top ten"}</span></span>
+                          )) : <span className="text-muted">cited directly, not through a card</span>}</div></div>
+                        <div className="prov-step"><span className="prov-k">{g.structure}</span><div className="text-body">{g.detail}</div></div>
+                        {g.source && <div className="prov-step"><span className="prov-k">source sentence</span>
+                          <div><span className="text-muted">{g.source.date} · {g.source.type}{g.source.synthetic ? " · internal" : ""}</span><br /><span className="text-body">&ldquo;{g.source.text}&rdquo;</span></div></div>}
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              ) : (
               <ul className="mt-3 space-y-2 text-xs">
                 {(sel.evidence_ids || []).map((pid) => { const e = evidence[pid]; return e ? (<li key={pid} className="border-l border-hairline pl-3 text-body"><span className="label mr-2">{e.date} · {e.source_type}{e.synthetic ? " · internal" : ""}</span>{e.text}</li>) : (<li key={pid} className="text-muted">{pid}</li>); })}
                 {!sel.evidence_ids?.length && <li className="text-muted">No source passage cited — this node comes from the model&rsquo;s prior knowledge.</li>}
               </ul>
+              )}
             </div>
           )}
         </div>

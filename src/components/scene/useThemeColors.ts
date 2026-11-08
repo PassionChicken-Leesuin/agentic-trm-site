@@ -17,6 +17,10 @@ export type SceneColors = {
   canvas: string;
   hairline: string;
   muted: string;
+  why: string;
+  what: string;
+  how: string;
+  resource: string;
 };
 
 const FALLBACK: SceneColors = {
@@ -24,6 +28,10 @@ const FALLBACK: SceneColors = {
   canvas: "#f2f0ea",
   hairline: "#d3cfc3",
   muted: "#6b6659",
+  why: "#d9736a",
+  what: "#6fa3dd",
+  how: "#78b98a",
+  resource: "#d2ac5a",
 };
 
 function normalize(v: string, fallback: string): string {
@@ -57,6 +65,10 @@ function read(): SceneColors {
     canvas: get("canvas"),
     hairline: get("hairline"),
     muted: get("muted"),
+    why: get("why"),
+    what: get("what"),
+    how: get("how"),
+    resource: get("resource"),
   };
 }
 

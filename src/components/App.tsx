@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Landing from "./Landing";
 import Frame from "./Frame";
 import TopNav from "./TopNav";
@@ -11,7 +11,7 @@ import Cards from "./Cards";
 import RoadmapView, { type Roadmaps, type Selection, type CardV2 } from "./RoadmapView";
 import type { Candidates } from "./Cards";
 import { isStage, type Stage } from "./views";
-import { DEFAULT_RUN, loadEvents, loadJSON, loadMeta, serverAvailable, type Meta } from "@/lib/data";
+import { API, STATIC_REF, createJob, getJob, loadEvents, loadJSON, loadMeta, serverAvailable, waitJob, type JobState, type Meta, type RunRef } from "@/lib/data";
 
 /** 깊은 링크: ?stage=upload|build|cards|roadmap (시연·점검용). build 는 아래 효과에서 준비된 문서로 시작한다. */
 function stageFromUrl(): Stage {
@@ -23,6 +23,7 @@ function stageFromUrl(): Stage {
 export default function App() {
   const [stage, setStage] = useState<Stage>(stageFromUrl);
   const [reached, setReached] = useState<Set<Stage>>(() => (stageFromUrl() === "gate" ? new Set<Stage>(["upload"]) : new Set<Stage>(["upload", "build", "cards", "roadmap"])));
+  const [ref, setRef] = useState<RunRef>(STATIC_REF);           // 지금 보고 있는 run (준비된 IonQ 또는 업로드 작업)
   const [meta, setMeta] = useState<Meta | null>(null);
   const [serverOk, setServerOk] = useState(false);
   const [source, setSource] = useState<Source | null>(null);
@@ -31,6 +32,11 @@ export default function App() {
   const [selection, setSelection] = useState<Selection | null>(null);
   const [cardsV2, setCardsV2] = useState<CardV2[]>([]);
   const [candidates, setCandidates] = useState<Candidates | null>(null);
+  const [job, setJob] = useState<JobState | null>(null);        // 업로드 작업 상태 (서버 모드)
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [waiting, setWaiting] = useState<string | null>(null);  // 구축이 끝난 뒤 카드·로드맵을 기다리는 동안의 안내문
+  const jobRef = useRef<string | null>(null);
 
   const go = useCallback((s: Stage) => {
     setReached((r) => new Set([...r, s]));
@@ -39,26 +45,52 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: "auto" });
   }, []);
 
+  /** run 의 카드·선정·로드맵 파일을 읽는다 (정적이든 서버든 같은 파일 이름). */
+  const loadOutputs = useCallback(async (r: RunRef) => {
+    const [rm, rm2, sel, cards, cand] = await Promise.all([
+      loadJSON<Roadmaps>(r, "roadmaps.json"), loadJSON<Roadmaps>(r, "roadmaps_v2.json"), loadJSON<Selection>(r, "selection.json"),
+      loadJSON<CardV2[]>(r, "cards_v2.json"), loadJSON<Candidates>(r, "candidates.json"),
+    ]);
+    setRoadmaps(rm); setRoadmapsV2(rm2); setSelection(sel); setCardsV2(cards ?? []); setCandidates(cand);
+  }, []);
+
   const startPrepared = useCallback(async () => {
     // 먼저 화면을 바꾸고 나서 사건 파일(수 MB)을 읽는다 — 첫 화면에서 멈춘 것처럼 보이지 않게
+    setRef(STATIC_REF); setJob(null); jobRef.current = null;
     setReached((r) => new Set([...r, "upload", "build"]));
     go("build");
-    const events = await loadEvents(DEFAULT_RUN);
+    const [m, events] = await Promise.all([loadMeta(STATIC_REF), loadEvents(STATIC_REF)]);
+    setMeta(m);
+    await loadOutputs(STATIC_REF);
     setSource({ kind: "static", events });
+  }, [go, loadOutputs]);
+
+  /** 서버 모드: 만들어진 작업(run)을 연다 — 업로드 직후와 ?job= 깊은 링크가 같은 길을 쓴다. */
+  const openJob = useCallback(async (run: string) => {
+    const r: RunRef = { kind: "server", run };
+    const [state, m] = await Promise.all([getJob(run), loadMeta(r)]);
+    setRef(r); setJob(state); jobRef.current = run;
+    setRoadmaps(null); setRoadmapsV2(null); setSelection(null); setCardsV2([]); setCandidates(null);
+    setMeta(m);
+    setSource({ kind: "server", run });
+    setReached(new Set<Stage>(["upload", "build"]));
+    go("build");
   }, [go]);
 
   useEffect(() => {
-    loadMeta().then(setMeta).catch(() => setMeta(null));
+    loadMeta(STATIC_REF).then(setMeta).catch(() => setMeta(null));
     serverAvailable().then(setServerOk);
-    loadJSON<Roadmaps>(DEFAULT_RUN, "roadmaps.json").then((r) => r && setRoadmaps(r));
-    loadJSON<Roadmaps>(DEFAULT_RUN, "roadmaps_v2.json").then((r) => r && setRoadmapsV2(r));
-    loadJSON<Selection>(DEFAULT_RUN, "selection.json").then((r) => r && setSelection(r));
-    loadJSON<CardV2[]>(DEFAULT_RUN, "cards_v2.json").then((r) => r && setCardsV2(r));
-    loadJSON<Candidates>(DEFAULT_RUN, "candidates.json").then((r) => r && setCandidates(r));
-    // 깊은 링크 ?stage=build — 준비된 문서로 바로 시작 (다음 틱에서, 렌더 중 갱신이 아니게)
-    const t = setTimeout(() => { if (new URLSearchParams(window.location.search).get("stage") === "build") void startPrepared(); }, 0);
+    // 준비된 run 의 산출물과 깊은 링크 ?stage=build (준비된 문서로 바로 시작) — 다음 틱에서, 렌더 중 갱신이 아니게
+    // ?job=<run> (서버 모드): 이미 만든 업로드 작업을 다시 연다 — 시연·점검용
+    const t = setTimeout(() => {
+      const q = new URLSearchParams(window.location.search);
+      const jobRun = q.get("job");
+      if (jobRun && API) { void openJob(jobRun); return; }
+      void loadOutputs(STATIC_REF);
+      if (q.get("stage") === "build") void startPrepared();
+    }, 0);
     return () => clearTimeout(t);
-  }, [startPrepared]);
+  }, [startPrepared, loadOutputs, openJob]);
 
   useEffect(() => {
     const onPop = (e: PopStateEvent) => { const s = (e.state as { stage?: unknown } | null)?.stage; setStage(isStage(s) ? s : "gate"); window.scrollTo({ top: 0, behavior: "auto" }); };
@@ -66,21 +98,53 @@ export default function App() {
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
-  const startUpload = (files: File[]) => {
-    // 서버 모드: 문서를 올리고 작업(run)을 만든 뒤 그 run 의 사건을 따라간다 — 서버 측 /api/v2/jobs 는 다음 단계.
-    alert(`Upload mode needs the agent server (${files.length} file(s) selected). This copy replays a recorded session.`);
+  /** 서버 모드: 문서를 올려 작업(run)을 만들고, 그 run 의 사건을 실시간으로 따라간다. */
+  const startUpload = async (files: File[], company: string, internal: string[]) => {
+    setUploading(true); setUploadError(null);
+    try {
+      const state = await createJob(company, files, { internal });
+      await openJob(state.run);
+    } catch (e) {
+      setUploadError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  /** 구축 화면이 끝났을 때. 서버 run 이면 작업이 끝날 때까지 기다린 뒤 카드·로드맵을 읽는다. */
+  const onBuildDone = async () => {
+    if (ref.kind === "static") { go("cards"); return; }
+    setWaiting("Finishing: consolidating subjects, assembling cards, panel debate, writing the roadmap…");
+    const s = await waitJob(ref.run, (st) => { setJob(st); setWaiting(`${st.stage}: ${st.message || ""}`); });
+    setWaiting(null);
+    if (!s || s.status === "error") { setUploadError(s?.error ?? "The job ended without a result."); go("upload"); return; }
+    const m = await loadMeta(ref).catch(() => null);
+    if (m) setMeta(m);
+    await loadOutputs(ref);
+    go("cards");
   };
 
   const docCount = meta?.planned_total ?? meta?.documents.length ?? 180;
+  const company = meta?.profile?.company ?? "IonQ";
   return (
     <>
       {stage !== "gate" && <ScrollProgress />}
       <TopNav stage={stage} reached={reached} onChange={go} onStart={startPrepared} />
       <main className={`relative z-10 w-full pb-28 ${stage === "gate" ? "" : stage === "build" ? "mx-auto max-w-[1700px] px-6 pt-24 sm:px-10" : "mx-auto max-w-5xl px-6 pt-28 sm:px-12"}`}>
         <div key={stage} className="view-enter">
-          {stage === "gate" && <Landing onStart={startPrepared} docCount={docCount} />}
-          {stage === "upload" && <Upload meta={meta} serverOk={serverOk} onPrepared={startPrepared} onUpload={startUpload} />}
-          {stage === "build" && meta && source && <Build meta={meta} source={source} onDone={() => go("cards")} />}
+          {stage === "gate" && <Landing onStart={startPrepared} onUpload={() => go("upload")} docCount={docCount} />}
+          {stage === "upload" && <Upload meta={ref.kind === "static" ? meta : null} serverOk={serverOk} busy={uploading} error={uploadError} onPrepared={startPrepared} onUpload={startUpload} />}
+          {stage === "build" && meta && source && (
+            <>
+              {ref.kind === "server" && job && (
+                <p className="mb-3 text-xs text-muted">
+                  <span className="label mr-2">{company}</span>{job.documents?.length ?? docCount} uploaded documents · run {ref.run}
+                  {waiting && <span className="ml-3 text-ink"><span className="spin mr-2" aria-hidden="true" />{waiting}</span>}
+                </p>
+              )}
+              <Build meta={meta} source={source} onDone={onBuildDone} />
+            </>
+          )}
           {stage === "build" && !source && (
             <div className="flex items-center gap-3 text-sm text-muted"><span className="spin" aria-hidden="true" />Loading the recorded session (180 documents, ~9 MB of events)…</div>
           )}

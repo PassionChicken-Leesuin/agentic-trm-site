@@ -6,7 +6,7 @@ import Reveal from "./Reveal";
 const RoadmapScene = dynamic(() => import("./scene/RoadmapScene"), { ssr: false });
 
 /** 첫 화면. 큰 제목, 오른쪽 설명과 버튼, 그 아래 등각 로드맵 판. */
-export default function Landing({ onStart, docCount }: { onStart: () => void; docCount: number }) {
+export default function Landing({ onStart, onUpload, docCount }: { onStart: () => void; onUpload: () => void; docCount: number }) {
   return (
     <section className="mx-auto w-full max-w-[1320px] px-6 pb-16 pt-28 sm:px-10">
       <Reveal><p className="label">A living knowledge base for technology roadmapping</p></Reveal>
@@ -27,8 +27,8 @@ export default function Landing({ onStart, docCount }: { onStart: () => void; do
           </Reveal>
           <Reveal delay={240}>
             <div className="mt-7 flex flex-wrap items-center gap-4">
-              <button className="btn" data-primary="true" onClick={onStart}>Start with {docCount || 180} IonQ documents</button>
-              <span className="text-xs text-muted">Recorded session · no account needed</span>
+              <button className="btn" data-primary="true" onClick={onUpload}>Upload documents →</button>
+              <button className="text-sm text-body underline decoration-hairline underline-offset-4 hover:text-ink" onClick={onStart}>or watch a recorded run on {docCount || 180} IonQ documents</button>
             </div>
           </Reveal>
         </div>

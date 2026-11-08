@@ -12,13 +12,13 @@ export type Candidates = {
 const LINES: { key: string; label: string; layer: string; n: number }[] = [
   { key: "state", label: "now", layer: "what", n: 2 },
   { key: "why", label: "why · needs & drivers", layer: "why", n: 3 },
-  { key: "trend", label: "trend · documents per year", layer: "why", n: 1 },
+  { key: "trend", label: "trend · documents per year", layer: "", n: 1 },
   { key: "what", label: "what · offerings", layer: "what", n: 3 },
   { key: "when", label: "when · dated statements", layer: "what", n: 3 },
   { key: "how", label: "how · capabilities", layer: "how", n: 3 },
   { key: "resource", label: "resources · enablers", layer: "resource", n: 3 },
-  { key: "actors", label: "actors", layer: "resource", n: 2 },
-  { key: "issue", label: "issues · risks, barriers, open questions", layer: "resource", n: 2 },
+  { key: "actors", label: "actors", layer: "", n: 2 },
+  { key: "issue", label: "issues · risks, barriers, open questions", layer: "", n: 2 },
 ];
 
 /** 한 줄의 근거 id 꼬리([ps_..., tf_...])를 떼고, 'internal' 표시를 남긴다. */

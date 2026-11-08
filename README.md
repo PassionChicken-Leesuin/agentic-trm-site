@@ -24,3 +24,14 @@ npm install
 npm run dev     # http://localhost:3000
 npm run build
 ```
+
+## Upload mode (agent server)
+
+The static deployment replays a recorded IonQ session. To let visitors upload their own documents, build the site with the agent server address and run that server:
+
+```bash
+# in Code/ (research repo): python -m uvicorn viz.server:app --port 8765
+NEXT_PUBLIC_API=http://127.0.0.1:8765 npx next build && npx next start -p 3011
+```
+
+Flow: Documents → company name + files → `POST /api/v2/jobs` → the Knowledge structures screen follows the job's events over SSE → when the job finishes (consolidation, cards, panel debate, roadmaps) the Cards and Roadmap screens read `/api/v2/runs/<run>/site/*.json`. Reopen a finished job with `/?job=<run>`. Without `NEXT_PUBLIC_API` the upload panel is shown disabled.

@@ -20,6 +20,10 @@
   --how: #78b98a;
   --resource: #d2ac5a;
   --k0: #a99bc9;
+  /* 통일안 (2026-11-08): 색은 로드맵 층에만 쓴다. 아래 셋은 층이 아닌 뜻 하나씩 */
+  --time-fact: #c9c9d2;   /* 시간 사실 기호의 한 가지 색 (양태는 채움으로) */
+  --internal: #e0a0c0;    /* 내부 문서 근거 표식 */
+  --conflict: #d9736a;    /* 충돌 표식 (값은 why 와 같지만 뜻이 달라 이름을 나눔) */
 
   color-scheme: dark;
 }
@@ -101,6 +105,16 @@ body { color: var(--body); font-family: var(--font-inter), -apple-system, "Segoe
 .panel > header .fn { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .panel > header .cnt { margin-left: auto; flex: none; font-variant-numeric: tabular-nums; max-width: 46%; overflow: hidden; text-overflow: ellipsis; }
 .panel .body { flex: 1; min-height: 0; position: relative; overflow: hidden; }
+/* 그래프 밑 범례 (notation) */
+.pcell { display: flex; flex-direction: column; min-height: 0; min-width: 0; gap: 5px; } .pcell > .panel { flex: 1; min-height: 0; }
+.notation { display: flex; flex-wrap: wrap; align-items: center; gap: 0 8px; padding: 0 4px; font-size: 8px; line-height: 1.35; color: var(--muted); flex: none; }
+.notation > span { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; min-width: 0; }
+.notation b { font-weight: 600; text-transform: uppercase; font-size: 7px; letter-spacing: 0.06em; margin-right: 2px; }
+.notation svg { transform: scale(0.75); transform-origin: center; }
+.notation .muted-note { font-style: italic; } .notation .sep { color: var(--body); }
+.notation .tag, .notation .sys { font-size: 6.5px; padding: 0 3px; }
+.layer-key { border-top: 0; padding: 0 0 6px; font-size: 11px; } .layer-key b { font-weight: 600; text-transform: uppercase; font-size: 10px; letter-spacing: 0.08em; }
+
 .panel svg { width: 100%; height: 100%; display: block; }
 .panel[data-flash="true"] { box-shadow: inset 0 0 0 1px var(--ink); }
 .panel.aside { overflow: auto; }
@@ -119,6 +133,8 @@ body { color: var(--body); font-family: var(--font-inter), -apple-system, "Segoe
 .chip small { color: var(--muted); margin-left: 4px; letter-spacing: 0.08em; text-transform: uppercase; font-size: 9px; }
 
 .passages { position: absolute; inset: 0; overflow: hidden; padding: 8px 10px; display: flex; flex-direction: column; gap: 5px; justify-content: flex-end; }
+.ps { position: relative; padding-left: 13px !important; } .ps .stripe { position: absolute; left: 0; top: 0; bottom: 0; width: 4px; display: flex; flex-direction: column; border-radius: 6px 0 0 6px; overflow: hidden; } .ps .stripe i { flex: 1; }
+.ps .int { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--internal); margin-right: 4px; vertical-align: 1px; }
 .ps { border: 1px solid var(--hairline-soft); background: color-mix(in oklab, var(--surface-soft) 70%, transparent); padding: 5px 8px; font-size: 11.5px; color: var(--body); border-radius: 6px; animation: slide 350ms cubic-bezier(0.16, 1, 0.3, 1) both; }
 .ps.dup { opacity: 0.5; } .ps.irr { opacity: 0.35; text-decoration: line-through; }
 .ps .meta { display: flex; gap: 4px; align-items: center; margin-bottom: 3px; }
@@ -137,11 +153,13 @@ body { color: var(--body); font-family: var(--font-inter), -apple-system, "Segoe
 .cell { stroke: var(--canvas); stroke-width: 1; } .cell.derived { stroke: var(--muted); stroke-dasharray: 3 2; } .cell.new { stroke: var(--ink); stroke-width: 1.5; }
 .edge { stroke: var(--hairline); fill: none; } .edge.new { stroke: var(--ink); stroke-width: 1.5; }
 .edge-label { font-size: 8.5px; fill: var(--muted); }
-.node circle { stroke: var(--canvas); stroke-width: 1.2; } .node.new circle { stroke: var(--ink); stroke-width: 2; }
+.node rect { stroke: var(--canvas); stroke-width: 1.2; } .node.new rect { stroke: var(--ink); stroke-width: 2; }
+.edge[data-rel="requires"] { stroke: var(--muted); } .edge[data-rel="enables"] { stroke: var(--muted); stroke-dasharray: 6 3; }
+.edge[data-rel="drives"] { stroke: var(--muted); stroke-dasharray: 2 2; } .edge[data-rel="part_of"] { stroke: var(--muted); stroke-width: 2.6; stroke-opacity: 0.45; }
 .node text { font-size: 10px; paint-order: stroke; stroke: var(--canvas); stroke-width: 3px; }
-.fact { stroke: var(--canvas); stroke-width: 1; } .fact.new { stroke: var(--ink); stroke-width: 1.5; }
+.fact { stroke-width: 1.4; }
 .chain { fill: none; stroke: var(--muted); stroke-opacity: 0.7; stroke-width: 1.1; }
-.chain.update { stroke: var(--resource); stroke-dasharray: 4 3; } .chain.conflict { stroke: var(--why); stroke-dasharray: 2 2; }
+.chain.update { stroke: var(--resource); stroke-dasharray: 4 3; } .chain.conflict { stroke: var(--conflict); stroke-dasharray: 2 2; }
 .axis text { fill: var(--muted); font-size: 10px; } .axis line, .axis path { stroke: var(--hairline); }
 .rowlbl { font-size: 10.5px; } .rowline { stroke: var(--hairline-soft); }
 .links-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
@@ -156,7 +174,8 @@ table.share td:first-child, table.share th:first-child { text-align: left; }
 .log { font-size: 11px; padding: 6px 12px; color: var(--body); }
 .log div { padding: 2px 0; border-bottom: 1px dotted var(--hairline-soft); }
 .log .t { color: var(--muted); margin-right: 5px; font-variant-numeric: tabular-nums; }
-.log .k0 { color: var(--k0); } .log .k2 { color: var(--how); } .log .k3 { color: var(--resource); } .log .k4 { color: var(--what); } .log .k5 { color: var(--why); } .log .m { color: var(--ink); }
+.log .k { display: inline-block; font-family: var(--font-mono), monospace; font-size: 8.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); border: 1px solid var(--hairline); border-radius: 3px; padding: 0 4px; margin-right: 5px; vertical-align: 1px; }
+.log .msg { color: var(--body); } .log .m { color: var(--ink); }
 
 /* ── 기회 카드 ─────────────────────────────────────────────── */
 .card { border: 1px solid var(--hairline); background: color-mix(in oklab, var(--surface-card) 94%, transparent); border-radius: 12px; padding: 18px 20px; display: flex; flex-direction: column; gap: 10px; }
@@ -164,7 +183,7 @@ table.share td:first-child, table.share th:first-child { text-align: left; }
 .card .row { display: grid; grid-template-columns: 92px 1fr; gap: 10px; font-size: 12px; line-height: 1.55; border-top: 1px solid var(--hairline-soft); padding-top: 8px; }
 .card .row .lbl { font-family: var(--font-mono), monospace; font-size: 9.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); padding-top: 3px; }
 .card .row[data-layer="why"] .lbl { color: var(--why); } .card .row[data-layer="what"] .lbl { color: var(--what); }
-.card .row[data-layer="how"] .lbl, .card .row[data-layer="resource"] .lbl { color: var(--how); }
+.card .row[data-layer="how"] .lbl { color: var(--how); } .card .row[data-layer="resource"] .lbl { color: var(--resource); }
 .card .item { display: inline-block; margin: 0 8px 4px 0; color: var(--ink); }
 .card .item small { color: var(--muted); }
 .card .chain { font-variant-numeric: tabular-nums; }
@@ -176,7 +195,11 @@ table.share td:first-child, table.share th:first-child { text-align: left; }
 .rm-node[data-layer="how"] rect { stroke: var(--how); } .rm-node[data-layer="resource"] rect { stroke: var(--resource); }
 .rm-node text { font-size: 10.5px; fill: var(--ink); }
 .rm-node[data-evidence="0"] rect { stroke-dasharray: 3 3; }
-.rm-edge { fill: none; stroke: var(--muted); stroke-opacity: 0.55; }
+.rm-edge { fill: none; stroke: var(--muted); stroke-opacity: 0.6; }
+.rm-edge[data-type="drives"] { stroke-dasharray: 2 3; } .rm-edge[data-type="enables"] { stroke-dasharray: 6 3; } .rm-edge[data-type="precedes"] { stroke-width: 0.8; }
+.rm-flag { font-size: 11px; font-weight: 600; } .rm-internal { fill: var(--internal); }
+.rm-legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 11px; color: var(--muted); margin-top: 10px; }
+.rm-legend svg { vertical-align: middle; margin-right: 5px; }
 .rm-node.selected rect { stroke-width: 2; stroke: var(--ink); }
 
 @media (prefers-reduced-motion: reduce) {
@@ -189,3 +212,13 @@ table.share td:first-child, table.share th:first-child { text-align: left; }
 /* 로딩 표시 */
 .spin { display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--hairline); border-top-color: var(--ink); animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* 로드맵 항목의 근거 사슬: 카드 ← 지식 구조 ← 원문 */
+.prov { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; font-size: 12px; line-height: 1.55; }
+.prov > li { border-left: 1px solid var(--hairline); padding-left: 12px; }
+.prov-step { display: grid; grid-template-columns: 160px 1fr; gap: 12px; padding: 2px 0; align-items: baseline; }
+.prov-card { display: block; }
+.prov-step + .prov-step { position: relative; }
+.prov-step + .prov-step::before { content: "↑"; position: absolute; left: -16px; top: 1px; color: var(--muted); font-size: 10px; }
+.prov-step b { color: var(--ink); font-weight: 500; }
+.prov-k { font-family: var(--font-mono), monospace; font-size: 9.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); padding-top: 2px; }

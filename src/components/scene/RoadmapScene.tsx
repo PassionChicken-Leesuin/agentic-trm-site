@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrthographicCamera } from "@react-three/drei";
 import * as THREE from "three";
+import { useThemeColors } from "./useThemeColors";
 
 /**
  * 히어로의 3D: 등각(isometric)으로 본 기술 로드맵 판.
@@ -15,7 +16,8 @@ import * as THREE from "three";
 
 type Layer = "why" | "what" | "how" | "resource";
 const LAYERS: Layer[] = ["why", "what", "how", "resource"];
-const COLORS: Record<Layer, string> = { why: "#d9736a", what: "#6fa3dd", how: "#78b98a", resource: "#d2ac5a" };
+// 층 색은 globals.css 의 --why/--what/--how/--resource 에서 읽는다 (통일안: 색 정의는 한 곳). Rig 가 받아 아래로 넘긴다.
+type LayerColors = Record<Layer, string>;
 const LABELS: Record<Layer, string> = { why: "Drivers & markets", what: "Products & milestones", how: "Technologies", resource: "Enablers" };
 const W = 12, D = 2.1, GAP = 0.25, H0 = 0.28, STEP = 0.22;
 
@@ -65,7 +67,7 @@ function Projector({ group, overlay, defs }: { group: React.RefObject<THREE.Grou
   return null;
 }
 
-function Tier({ layer }: { layer: Layer }) {
+function Tier({ layer, colors }: { layer: Layer; colors: LayerColors }) {
   const h = layerTop(layer);
   const edges = useMemo(() => new THREE.EdgesGeometry(new THREE.BoxGeometry(W, 0.001, D)), []);
   return (
@@ -75,7 +77,7 @@ function Tier({ layer }: { layer: Layer }) {
         <meshStandardMaterial color="#17171b" roughness={0.95} metalness={0} />
       </mesh>
       <lineSegments position={[0, h + 0.001, 0]} geometry={edges}>
-        <lineBasicMaterial color={COLORS[layer]} transparent opacity={0.55} />
+        <lineBasicMaterial color={colors[layer]} transparent opacity={0.55} />
       </lineSegments>
       {Array.from({ length: 6 }, (_, i) => (
         <mesh key={i} position={[-W / 2 + (i + 0.5) * (W / 6), h + 0.002, D / 2 - 0.12]}>
@@ -87,7 +89,7 @@ function Tier({ layer }: { layer: Layer }) {
   );
 }
 
-function Blocks({ t }: { t: React.RefObject<number> }) {
+function Blocks({ t, colors }: { t: React.RefObject<number>; colors: LayerColors }) {
   const refs = useRef<(THREE.Mesh | null)[]>([]);
   const edges = useMemo(() => BLOCKS.map((b) => new THREE.EdgesGeometry(new THREE.BoxGeometry(b.w, 0.32, 1.1))), []);
   useFrame(() => {
@@ -107,10 +109,10 @@ function Blocks({ t }: { t: React.RefObject<number> }) {
           <group key={b.id} position={[p.x, p.y, p.z]}>
             <mesh ref={(el) => { refs.current[i] = el; }}>
               <boxGeometry args={[b.w, 0.32, 1.1]} />
-              <meshStandardMaterial color="#232329" emissive={COLORS[b.layer]} emissiveIntensity={0.1} roughness={0.8} />
+              <meshStandardMaterial color="#232329" emissive={colors[b.layer]} emissiveIntensity={0.1} roughness={0.8} />
             </mesh>
             <lineSegments geometry={edges[i]}>
-              <lineBasicMaterial color={COLORS[b.layer]} transparent opacity={0.9} />
+              <lineBasicMaterial color={colors[b.layer]} transparent opacity={0.9} />
             </lineSegments>
           </group>
         );
@@ -119,12 +121,12 @@ function Blocks({ t }: { t: React.RefObject<number> }) {
   );
 }
 
-function Pipes({ t }: { t: React.RefObject<number> }) {
+function Pipes({ t, colors }: { t: React.RefObject<number>; colors: LayerColors }) {
   const curves = useMemo(() => LINKS.map(([a, b]) => {
     const A = blockPos(BLOCKS[a]), B = blockPos(BLOCKS[b]);
     const mid = A.clone().add(B).multiplyScalar(0.5); mid.y = Math.max(A.y, B.y) + 0.55;
-    return { curve: new THREE.CatmullRomCurve3([A, mid, B]), color: COLORS[BLOCKS[b].layer] };
-  }), []);
+    return { curve: new THREE.CatmullRomCurve3([A, mid, B]), color: colors[BLOCKS[b].layer] };
+  }), [colors]);
   const dots = useRef<(THREE.Mesh | null)[]>([]);
   useFrame(() => { dots.current.forEach((d, i) => { if (!d) return; const u = (t.current * 0.22 + i * 0.13) % 1; curves[i].curve.getPointAt(u, d.position); }); });
   return (
@@ -145,20 +147,20 @@ function Pipes({ t }: { t: React.RefObject<number> }) {
   );
 }
 
-function Rig({ overlay, defs }: { overlay: React.RefObject<HTMLDivElement | null>; defs: LabelDef[] }) {
+function Rig({ overlay, defs, colors }: { overlay: React.RefObject<HTMLDivElement | null>; defs: LabelDef[]; colors: LayerColors }) {
   const g = useRef<THREE.Group>(null);
   const t = useRef(0);
   useFrame((_, delta) => { t.current += delta; if (g.current) g.current.rotation.y = -Math.PI / 4 + Math.sin(t.current * 0.12) * 0.05; });
   return (
     <group position={[0, -0.9, 0]}>
       <group ref={g} rotation={[0, -Math.PI / 4, 0]}>
-        {LAYERS.map((l) => <Tier key={l} layer={l} />)}
+        {LAYERS.map((l) => <Tier key={l} layer={l} colors={colors} />)}
         <mesh position={[0, -0.2, 0]}>
           <boxGeometry args={[W + 0.4, 0.4, 4 * D + 3 * GAP + 0.4]} />
           <meshStandardMaterial color="#111114" roughness={1} />
         </mesh>
-        <Blocks t={t} />
-        <Pipes t={t} />
+        <Blocks t={t} colors={colors} />
+        <Pipes t={t} colors={colors} />
         <Projector group={g} overlay={overlay} defs={defs} />
       </group>
     </group>
@@ -168,6 +170,8 @@ function Rig({ overlay, defs }: { overlay: React.RefObject<HTMLDivElement | null
 export default function RoadmapScene() {
   const overlay = useRef<HTMLDivElement>(null);
   const defs = useMemo(() => labelDefs(), []);
+  const theme = useThemeColors();
+  const colors = useMemo<LayerColors>(() => ({ why: theme.why, what: theme.what, how: theme.how, resource: theme.resource }), [theme]);
   useEffect(() => { if (overlay.current) overlay.current.style.opacity = "1"; }, []);
   return (
     <div className="absolute inset-0">
@@ -176,7 +180,7 @@ export default function RoadmapScene() {
         <OrthographicCamera makeDefault position={[10, 9, 10]} zoom={62} near={0.1} far={100} onUpdate={(c) => c.lookAt(0, 0.2, 0)} />
         <hemisphereLight args={["#2b2b33", "#0b0b0d", 1.1]} />
         <directionalLight position={[6, 10, 4]} intensity={1.2} color="#ffffff" />
-        <Rig overlay={overlay} defs={defs} />
+        <Rig overlay={overlay} defs={defs} colors={colors} />
       </Canvas>
       <div ref={overlay} className="pointer-events-none absolute inset-0 transition-opacity duration-700" style={{ opacity: 0 }} aria-hidden="true">
         {defs.map((d) => (

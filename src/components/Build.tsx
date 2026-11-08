@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { API, replay, type KbEvent, type Meta } from "@/lib/data";
 import { StructuresEngine } from "@/lib/structures";
+import { Notation } from "./Notation";
 
 export type Source = { kind: "static"; events: KbEvent[] } | { kind: "server"; run: string };
 
@@ -95,10 +96,14 @@ export default function Build({ meta, source, onDone }: { meta: Meta; source: So
       <div className="chips mb-2"><span className="label mr-2" style={{ color: "var(--k0)" }}>Glossary</span><span id="chips" className="chips" /></div>
       <div className="panels">
         {PANELS.map((p) => (
-          <section key={p.id} className="panel" id={p.dom} data-flash="false" style={p.hidden ? { display: "none" } : undefined} aria-hidden={p.hidden || undefined}>
-            <header><span className="k">{p.k}</span><span className="label fn">{p.fn}</span><span id={"c" + p.id[1]} className="cnt label">0</span></header>
-            <div className="body">{p.id === "k1" ? <div id="passages" className="passages" /> : <svg id={"s" + p.id[1]} />}</div>
-          </section>
+          // 상자(그래프) + 상자 바깥 바로 밑의 범례(notation). 범례는 그림 주석처럼 테두리 밖에 둔다.
+          <div key={p.id} className="pcell" id={"w" + p.id[1]} style={p.hidden ? { display: "none" } : undefined} aria-hidden={p.hidden || undefined}>
+            <section className="panel" id={p.dom} data-flash="false">
+              <header><span className="k">{p.k}</span><span className="label fn">{p.fn}</span><span id={"c" + p.id[1]} className="cnt label">0</span></header>
+              <div className="body">{p.id === "k1" ? <div id="passages" className="passages" /> : <svg id={"s" + p.id[1]} />}</div>
+            </section>
+            <Notation panel={p.id} />
+          </div>
         ))}
         <aside className="panel aside" id="paside">
           <div className="sec"><h3 className="label">Progress</h3><div id="progress" className="text-sm text-ink">—</div><div className="mt-2 h-px w-full bg-hairline-soft"><div id="bar" className="h-px bg-ink transition-[width] duration-300" style={{ width: 0 }} /></div></div>

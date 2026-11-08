@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { API, replay, type KbEvent, type Meta } from "@/lib/data";
+import { API, getJob, replay, type KbEvent, type Meta } from "@/lib/data";
 import { StructuresEngine } from "@/lib/structures";
 import { Notation } from "./Notation";
 
@@ -57,10 +57,29 @@ export default function Build({ meta, source, onDone }: { meta: Meta; source: So
     if (source.kind === "static") {
       stopRef.current = replay(source.events, (ev) => e.handle(ev), done, { speed, start: from });
     } else {
-      const es = new EventSource(`${API}/api/v2/runs/${source.run}/stream?speed=${speed}&start=${from}&follow=true`);
-      es.addEventListener("kb", (m) => e.handle(JSON.parse((m as MessageEvent).data)));
-      es.addEventListener("done", () => { es.close(); done(); });
-      stopRef.current = () => es.close();
+      // 서버 작업: 새 사건을 주기적으로 물어 가져온다 (SSE 대신). 공개 터널(Cloudflare quick tunnel 등)이 실시간 스트림을
+      // 끝까지 모아 두는 문제가 있어 일반 요청으로 바꿈 (2026-11-08). 받은 사건 묶음은 기록 간격대로 재생한다.
+      const run = source.run;
+      let since = from, stopped = false, timer: ReturnType<typeof setTimeout> | null = null, stopReplay: (() => void) | null = null;
+      const tick = async () => {
+        if (stopped) return;
+        let evs: KbEvent[] = [];
+        try {
+          const r = await fetch(`${API}/api/v2/runs/${run}/events?since=${since}&limit=3000`, { cache: "no-store" });
+          if (r.ok) evs = await r.json();
+        } catch { /* 잠시 끊겨도 다음 순회에서 다시 */ }
+        if (stopped) return;
+        if (evs.length) {
+          since = evs[evs.length - 1].seq;
+          stopReplay = replay(evs, (ev) => e.handle(ev), () => { stopReplay = null; if (!stopped) timer = setTimeout(tick, 500); }, { speed, start: evs[0].seq - 1, maxGap: 0.3 });
+          return;
+        }
+        const s = await getJob(run);
+        if (!s || s.status === "done" || s.status === "error") { done(); return; }
+        timer = setTimeout(tick, 2000);
+      };
+      void tick();
+      stopRef.current = () => { stopped = true; if (timer) clearTimeout(timer); stopReplay?.(); };
     }
   }
   const pause = () => { stopRef.current?.(); setRunning(false); };

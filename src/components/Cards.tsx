@@ -97,7 +97,12 @@ export default function Cards({ cards, candidates, onNext }: { cards: CardV2[]; 
           docs = public + internal (i). Click a card for every line with its source ids.
         </p>
       </Reveal>
-      <div className="mt-6 grid gap-5 md:grid-cols-2">
+      {/* 다음 단계 버튼: 카드 목록 바로 위 오른쪽 */}
+      <div className="mt-5 flex items-center justify-end gap-4">
+        <span className="h-px w-10 bg-hairline" aria-hidden="true" />
+        <button className="btn" data-primary="true" onClick={onNext}>Let the models choose and the agent build the roadmap →</button>
+      </div>
+      <div className="mt-4 grid gap-5 md:grid-cols-2">
         {sorted.map((c, i) => {
           const isOpen = open === c.eid;
           return (
@@ -133,10 +138,6 @@ export default function Cards({ cards, candidates, onNext }: { cards: CardV2[]; 
             </Reveal>
           );
         })}
-      </div>
-      <div className="mt-10 flex items-center justify-end gap-4">
-        <span className="h-px w-10 bg-hairline" aria-hidden="true" />
-        <button className="btn" data-primary="true" onClick={onNext}>Let the models choose and the agent build the roadmap →</button>
       </div>
     </section>
   );

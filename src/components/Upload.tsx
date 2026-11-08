@@ -5,14 +5,14 @@ import Reveal from "./Reveal";
 import type { Meta } from "@/lib/data";
 
 const ACCEPT = ".pdf,.html,.htm,.md,.markdown,.txt,.docx";
-const MAX_FILES = 30;
+const MAX_FILES = 500;
 
 /**
  * 문서 단계. 왼쪽은 내 문서(서버 모드에서만: 회사 이름 + 파일), 오른쪽은 준비된 IonQ 180건.
  * 내부 문서(메모·회의록·이메일)는 파일 이름에 internal/memo/minutes/email 이 있으면 자동으로, 아니면 목록에서 표시한다.
  */
-export default function Upload({ meta, serverOk, busy, error, onPrepared, onUpload }: {
-  meta: Meta | null; serverOk: boolean; busy: boolean; error: string | null;
+export default function Upload({ meta, serverOk, busy, busyText, error, onPrepared, onUpload }: {
+  meta: Meta | null; serverOk: boolean; busy: boolean; busyText?: string | null; error: string | null;
   onPrepared: () => void; onUpload: (files: File[], company: string, internal: string[]) => void;
 }) {
   const [over, setOver] = useState(false);
@@ -77,7 +77,7 @@ export default function Upload({ meta, serverOk, busy, error, onPrepared, onUplo
                   />
                 </label>
                 <p className="mt-4 text-sm text-body">Drop PDF, HTML, DOCX, Markdown or text files here, or choose them below.</p>
-                <p className="mt-1 text-xs text-muted">Up to {MAX_FILES} documents per session. Dates are read from file names (YYYY-MM-DD) or the text; mark internal documents so they are shown as such.</p>
+                <p className="mt-1 text-xs text-muted">Up to {MAX_FILES} documents per run. Dates are read from file names (YYYY-MM-DD) or the text; mark internal documents so they are shown as such.</p>
               </>
             ) : (
               <p className="mt-4 text-xs text-muted">Available when the site runs with its agent server (NEXT_PUBLIC_API). This copy replays a recorded session instead.</p>
@@ -92,7 +92,7 @@ export default function Upload({ meta, serverOk, busy, error, onPrepared, onUplo
                     <button className="text-muted hover:text-ink" onClick={() => remove(f.name)} aria-label={`remove ${f.name}`}>×</button>
                   </li>
                 ))}
-                <li className="py-1.5 text-muted">{files.length} file(s) · {totalKb} KB · {internal.size} internal</li>
+                <li className="py-1.5 text-muted">{files.length} file(s) · {totalKb} KB · {internal.size} internal{files.length >= MAX_FILES ? ` · limit of ${MAX_FILES} reached` : ""}</li>
               </ul>
             )}
             {error && <p className="mt-3 text-xs" style={{ color: "var(--why)" }}>{error}</p>}
@@ -102,11 +102,11 @@ export default function Upload({ meta, serverOk, busy, error, onPrepared, onUplo
                 <input type="file" multiple accept={ACCEPT} disabled={!serverOk || busy} className="hidden" onChange={(e) => { if (e.target.files) addFiles(e.target.files); e.target.value = ""; }} />
               </label>
               <button className="btn" data-primary="true" disabled={!canStart} onClick={() => onUpload(files, company.trim(), [...internal])}>
-                {busy ? "Uploading…" : "Build the knowledge base →"}
+                {busy ? (busyText || "Uploading…") : "Build the knowledge base →"}
               </button>
               {serverOk && files.length > 0 && company.trim().length <= 1 && <span className="text-xs text-muted">Enter the company name first.</span>}
             </div>
-            {serverOk && <p className="mt-4 text-[11px] leading-relaxed text-muted">The run takes roughly 1–2 minutes per document for reading and routing, then a few minutes for consolidation, the card debate and roadmap writing. Keep this tab open.</p>}
+            {serverOk && <p className="mt-4 text-[11px] leading-relaxed text-muted">Reading and building take about 30 seconds per document (500 documents: about 5 hours), then a few more minutes for consolidation, the card debate and the roadmap. The run continues on the server: you can close this tab and reopen it later from the link shown on the next screen.</p>}
           </div>
         </Reveal>
         <Reveal delay={320}>

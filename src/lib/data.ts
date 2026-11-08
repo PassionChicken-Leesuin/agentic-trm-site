@@ -36,6 +36,7 @@ export type JobState = {
   cards?: number;
   seconds?: number;
   documents?: (Doc & { original_name: string; n_chars: number })[];
+  skipped?: { file: string; reason: string }[];
 };
 
 export const API = process.env.NEXT_PUBLIC_API ?? "";
@@ -81,21 +82,42 @@ export async function loadJSON<T>(ref: RunRef, name: string): Promise<T | null> 
   }
 }
 
-/** 문서를 올려 작업을 만든다. 서버가 파일을 변환하고(LLM 없음) 바로 파이프라인을 띄운다. 오류 메시지는 서버의 detail 을 그대로 전한다. */
-export async function createJob(company: string, files: File[], opts: { descriptor?: string; brief?: string; internal?: string[] } = {}): Promise<JobState> {
-  const fd = new FormData();
-  fd.set("company", company);
-  if (opts.descriptor) fd.set("descriptor", opts.descriptor);
-  if (opts.brief) fd.set("brief", opts.brief);
-  if (opts.internal?.length) fd.set("internal", opts.internal.join("\n"));
-  files.forEach((f) => fd.append("files", f, f.name));
-  const r = await fetch(`${API}/api/v2/jobs`, { method: "POST", body: fd });
+async function ok(r: Response) {
   if (!r.ok) {
     let detail = `${r.status}`;
     try { detail = (await r.json()).detail ?? detail; } catch { /* keep status */ }
     throw new Error(String(detail));
   }
   return r.json();
+}
+
+/**
+ * 문서를 올려 작업을 만든다. 많은 문서(최대 500)는 요청 하나의 크기 제한(공개 터널 100MB)을 넘으므로 나눠 올린다:
+ * 작업 열기(/jobs/new) → 파일 묶음(/jobs/<run>/files, 묶음당 최대 40개·60MB) → 시작(/jobs/<run>/start; 서버가 변환 후 파이프라인을 띄움).
+ * onProgress(보낸 파일 수, 전체) 로 진행을 알린다. 오류 메시지는 서버의 detail 을 그대로 전한다.
+ */
+export async function createJob(company: string, files: File[],
+  opts: { descriptor?: string; brief?: string; internal?: string[]; onProgress?: (sent: number, total: number) => void } = {}): Promise<JobState> {
+  const fd0 = new FormData();
+  fd0.set("company", company);
+  if (opts.descriptor) fd0.set("descriptor", opts.descriptor);
+  if (opts.brief) fd0.set("brief", opts.brief);
+  const job = (await ok(await fetch(`${API}/api/v2/jobs/new`, { method: "POST", body: fd0 }))) as JobState;
+  const MAX_N = 40, MAX_BYTES = 60 * 1024 * 1024;
+  let sent = 0;
+  opts.onProgress?.(0, files.length);
+  for (let i = 0; i < files.length;) {
+    const fd = new FormData();
+    let n = 0, bytes = 0;
+    while (i < files.length && n < MAX_N && (n === 0 || bytes + files[i].size <= MAX_BYTES)) {
+      fd.append("files", files[i], files[i].name); bytes += files[i].size; n++; i++;
+    }
+    await ok(await fetch(`${API}/api/v2/jobs/${job.run}/files`, { method: "POST", body: fd }));
+    sent += n; opts.onProgress?.(sent, files.length);
+  }
+  const fd1 = new FormData();
+  if (opts.internal?.length) fd1.set("internal", opts.internal.join("\n"));
+  return (await ok(await fetch(`${API}/api/v2/jobs/${job.run}/start`, { method: "POST", body: fd1 }))) as JobState;
 }
 
 export async function getJob(run: string): Promise<JobState | null> {

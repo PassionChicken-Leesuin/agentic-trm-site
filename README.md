@@ -34,4 +34,4 @@ The static deployment replays a recorded IonQ session. To let visitors upload th
 NEXT_PUBLIC_API=http://127.0.0.1:8765 npx next build && npx next start -p 3011
 ```
 
-Flow: Documents → company name + files → `POST /api/v2/jobs` → the Knowledge structures screen follows the job's events over SSE → when the job finishes (consolidation, cards, panel debate, roadmaps) the Cards and Roadmap screens read `/api/v2/runs/<run>/site/*.json`. Reopen a finished job with `/?job=<run>`. Without `NEXT_PUBLIC_API` the upload panel is shown disabled.
+Flow: Documents → company name + files (up to 500; sent in chunks of ≤ 40 files / 60 MB: `POST /api/v2/jobs/new` → `/jobs/<run>/files` → `/jobs/<run>/start`) → the Knowledge structures screen follows the job's events over SSE → when the job finishes (consolidation, cards, panel debate, roadmaps) the Cards and Roadmap screens read `/api/v2/runs/<run>/site/*.json`. Reopen a finished job with `/?job=<run>`. Without `NEXT_PUBLIC_API` the upload panel is shown disabled.

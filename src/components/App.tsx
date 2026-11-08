@@ -35,6 +35,7 @@ export default function App() {
   const [job, setJob] = useState<JobState | null>(null);        // 업로드 작업 상태 (서버 모드)
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadMsg, setUploadMsg] = useState<string | null>(null);
   const [waiting, setWaiting] = useState<string | null>(null);  // 구축이 끝난 뒤 카드·로드맵을 기다리는 동안의 안내문
   const jobRef = useRef<string | null>(null);
 
@@ -102,12 +103,12 @@ export default function App() {
   const startUpload = async (files: File[], company: string, internal: string[]) => {
     setUploading(true); setUploadError(null);
     try {
-      const state = await createJob(company, files, { internal });
+      const state = await createJob(company, files, { internal, onProgress: (n, t) => setUploadMsg(n < t ? `Uploading ${n} / ${t} files…` : `Converting ${t} files…`) });
       await openJob(state.run);
     } catch (e) {
       setUploadError(e instanceof Error ? e.message : String(e));
     } finally {
-      setUploading(false);
+      setUploading(false); setUploadMsg(null);
     }
   };
 
@@ -133,12 +134,12 @@ export default function App() {
       <main className={`relative z-10 w-full pb-28 ${stage === "gate" ? "" : stage === "build" ? "mx-auto max-w-[1700px] px-6 pt-24 sm:px-10" : "mx-auto max-w-5xl px-6 pt-28 sm:px-12"}`}>
         <div key={stage} className="view-enter">
           {stage === "gate" && <Landing onStart={startPrepared} onUpload={() => go("upload")} docCount={docCount} />}
-          {stage === "upload" && <Upload meta={ref.kind === "static" ? meta : null} serverOk={serverOk} busy={uploading} error={uploadError} onPrepared={startPrepared} onUpload={startUpload} />}
+          {stage === "upload" && <Upload meta={ref.kind === "static" ? meta : null} serverOk={serverOk} busy={uploading} busyText={uploadMsg} error={uploadError} onPrepared={startPrepared} onUpload={startUpload} />}
           {stage === "build" && meta && source && (
             <>
               {ref.kind === "server" && job && (
                 <p className="mb-3 text-xs text-muted">
-                  <span className="label mr-2">{company}</span>{job.documents?.length ?? docCount} uploaded documents · run {ref.run}
+                  <span className="label mr-2">{company}</span>{job.documents?.length ?? docCount} uploaded documents{job.skipped?.length ? ` (${job.skipped.length} skipped: ${job.skipped.slice(0, 3).map((s) => s.file).join(", ")}${job.skipped.length > 3 ? ", …" : ""})` : ""} · run <a className="underline underline-offset-2 hover:text-ink" href={`/?job=${ref.run}`}>{ref.run}</a> (reopen this link later)
                   {waiting && <span className="ml-3 text-ink"><span className="spin mr-2" aria-hidden="true" />{waiting}</span>}
                 </p>
               )}

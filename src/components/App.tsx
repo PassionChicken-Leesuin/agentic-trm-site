@@ -8,10 +8,11 @@ import ScrollProgress from "./ScrollProgress";
 import Upload from "./Upload";
 import Build, { type Source } from "./Build";
 import Cards from "./Cards";
+import Debate from "./Debate";
 import RoadmapView, { type Roadmaps, type Selection, type CardV2 } from "./RoadmapView";
 import type { Candidates } from "./Cards";
 import { isStage, type Stage } from "./views";
-import { API, STATIC_REF, createJob, getJob, loadEvents, loadJSON, loadMeta, rememberRun, resultLink, serverAvailable, waitJob, type JobState, type Meta, type RunRef } from "@/lib/data";
+import { API, STATIC_REF, createJob, getJob, loadEvents, loadJSON, loadMeta, rememberRun, resultLink, serverAvailable, waitJob, type Debate as DebateData, type JobState, type Meta, type RunRef } from "@/lib/data";
 
 /** 깊은 링크: ?stage=upload|build|cards|roadmap (시연·점검용). build 는 아래 효과에서 준비된 문서로 시작한다. */
 function stageFromUrl(): Stage {
@@ -32,6 +33,7 @@ export default function App() {
   const [selection, setSelection] = useState<Selection | null>(null);
   const [cardsV2, setCardsV2] = useState<CardV2[]>([]);
   const [candidates, setCandidates] = useState<Candidates | null>(null);
+  const [debate, setDebate] = useState<DebateData | null>(null);
   const [job, setJob] = useState<JobState | null>(null);        // 업로드 작업 상태 (서버 모드)
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -48,11 +50,12 @@ export default function App() {
 
   /** run 의 카드·선정·로드맵 파일을 읽는다 (정적이든 서버든 같은 파일 이름). */
   const loadOutputs = useCallback(async (r: RunRef) => {
-    const [rm, rm2, sel, cards, cand] = await Promise.all([
+    const [rm, rm2, sel, cards, cand, deb] = await Promise.all([
       loadJSON<Roadmaps>(r, "roadmaps.json"), loadJSON<Roadmaps>(r, "roadmaps_v2.json"), loadJSON<Selection>(r, "selection.json"),
-      loadJSON<CardV2[]>(r, "cards_v2.json"), loadJSON<Candidates>(r, "candidates.json"),
+      loadJSON<CardV2[]>(r, "cards_v2.json"), loadJSON<Candidates>(r, "candidates.json"), loadJSON<DebateData>(r, "debate.json"),
     ]);
-    setRoadmaps(rm); setRoadmapsV2(rm2); setSelection(sel); setCardsV2(cards ?? []); setCandidates(cand);
+    // 선정이 아직 없는 selection.json(토론 전 내보내기)은 없는 것으로 본다
+    setRoadmaps(rm); setRoadmapsV2(rm2); setSelection(sel && Object.keys(sel.stances || {}).length ? sel : null); setCardsV2(cards ?? []); setCandidates(cand); setDebate(deb);
   }, []);
 
   const startPrepared = useCallback(async () => {
@@ -71,7 +74,7 @@ export default function App() {
     const r: RunRef = { kind: "server", run };
     const [state, m] = await Promise.all([getJob(run), loadMeta(r)]);
     setRef(r); setJob(state); jobRef.current = run;
-    setRoadmaps(null); setRoadmapsV2(null); setSelection(null); setCardsV2([]); setCandidates(null);
+    setRoadmaps(null); setRoadmapsV2(null); setSelection(null); setCardsV2([]); setCandidates(null); setDebate(null);
     setMeta(m);
     setSource({ kind: "server", run });
     setReached(new Set<Stage>(["upload", "build"]));
@@ -131,17 +134,54 @@ export default function App() {
     }
   };
 
-  /** 구축 화면이 끝났을 때. 서버 run 이면 작업이 끝날 때까지 기다린 뒤 카드·로드맵을 읽는다. */
+  /** 구축 화면이 끝났을 때. 서버 run 이면 카드가 조립될 때까지만 기다린 뒤 카드 화면으로 간다 (토론·로드맵은 다음 화면들에서 기다린다). */
   const onBuildDone = async () => {
     if (ref.kind === "static") { go("cards"); return; }
-    setWaiting("Finishing: consolidating subjects, assembling cards, panel debate, writing the roadmap…");
-    const s = await waitJob(ref.run, (st) => { setJob(st); setWaiting(`${st.stage}: ${st.message || ""}`); });
+    setWaiting("Finishing the structures and assembling the opportunity cards…");
+    const past = new Set(["select", "make", "export", "done"]);
+    for (;;) {
+      const s = await getJob(ref.run);
+      if (s) { setJob(s); setWaiting(`${s.stage}: ${s.message || ""}`); }
+      if (!s || s.status === "error") { setWaiting(null); setUploadError(s?.error ?? "The job ended without a result."); go("upload"); return; }
+      const cards = await loadJSON<CardV2[]>(ref, "cards_v2.json");
+      if ((cards && cards.length) || past.has(s.stage) || s.status === "done") break;
+      await new Promise((res) => setTimeout(res, 3000));
+    }
     setWaiting(null);
-    if (!s || s.status === "error") { setUploadError(s?.error ?? "The job ended without a result."); go("upload"); return; }
     const m = await loadMeta(ref).catch(() => null);
     if (m) setMeta(m);
     await loadOutputs(ref);
     go("cards");
+  };
+
+  // 토론 화면(서버 작업): 토론 기록이 늘어나는 동안 debate.json 을 다시 읽고, 작업이 끝나면 선정·로드맵까지 읽는다
+  useEffect(() => {
+    if (stage !== "debate" || ref.kind !== "server") return;
+    if (job && (job.status === "done" || job.status === "error")) return;
+    const r = ref; let stop = false;
+    const tick = async () => {
+      if (stop) return;
+      const [s, deb] = await Promise.all([getJob(r.run), loadJSON<DebateData>(r, "debate.json")]);
+      if (stop) return;
+      if (deb) setDebate(deb);
+      if (s) setJob(s);
+      if (s && (s.status === "done" || s.status === "error")) { await loadOutputs(r); return; }
+      setTimeout(tick, 3000);
+    };
+    void tick();
+    return () => { stop = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stage, ref, job?.status]);
+
+  /** 토론 화면에서 '선정된 카드 보기'. 서버 run 이면 로드맵이 다 써질 때까지 기다린다. */
+  const onDebateDone = async () => {
+    if (ref.kind === "static") { go("roadmap"); return; }
+    setWaiting("Writing the roadmap from the selected cards…");
+    const s = await waitJob(ref.run, (st) => { setJob(st); setWaiting(`${st.stage}: ${st.message || ""}`); });
+    setWaiting(null);
+    if (!s || s.status === "error") { setUploadError(s?.error ?? "The job ended without a result."); go("upload"); return; }
+    await loadOutputs(ref);
+    go("roadmap");
   };
 
   const docCount = meta?.planned_total ?? meta?.documents.length ?? 180;
@@ -150,7 +190,7 @@ export default function App() {
     <>
       {stage !== "gate" && <ScrollProgress />}
       <TopNav stage={stage} reached={reached} onChange={go} onStart={startPrepared} />
-      <main className={`relative z-10 w-full pb-28 ${stage === "gate" ? "" : stage === "build" ? "mx-auto max-w-[1700px] px-6 pt-24 sm:px-10" : "mx-auto max-w-5xl px-6 pt-28 sm:px-12"}`}>
+      <main className={`relative z-10 w-full pb-28 ${stage === "gate" ? "" : stage === "build" ? "mx-auto max-w-[1700px] px-6 pt-24 sm:px-10" : stage === "debate" ? "mx-auto max-w-[1500px] px-6 pt-28 sm:px-10" : "mx-auto max-w-5xl px-6 pt-28 sm:px-12"}`}>
         <div key={stage} className="view-enter">
           {stage === "gate" && <Landing onStart={startPrepared} onUpload={() => go("upload")} docCount={docCount} />}
           {stage === "upload" && <Upload meta={ref.kind === "static" ? meta : null} serverOk={serverOk} busy={uploading} busyText={uploadMsg} error={uploadError} onPrepared={startPrepared} onUpload={startUpload} />}
@@ -180,7 +220,8 @@ export default function App() {
           {stage === "build" && !source && (
             <div className="flex items-center gap-3 text-sm text-muted"><span className="spin" aria-hidden="true" />Loading the recorded session (180 documents, ~9 MB of events)…</div>
           )}
-          {stage === "cards" && <Cards cards={cardsV2} candidates={candidates} onNext={() => go("roadmap")} />}
+          {stage === "cards" && <Cards cards={cardsV2} candidates={candidates} onNext={() => go("debate")} />}
+          {stage === "debate" && <Debate cards={cardsV2} debate={debate} selection={selection} live={ref.kind === "server" && job?.status !== "done" && job?.status !== "error"} waiting={waiting} onNext={onDebateDone} />}
           {stage === "roadmap" && <RoadmapView data={roadmaps} v2={roadmapsV2} selection={selection} cards={cardsV2} serverOk={serverOk} />}
         </div>
       </main>

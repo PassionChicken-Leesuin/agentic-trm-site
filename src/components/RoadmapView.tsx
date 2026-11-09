@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as d3 from "d3";
 import Reveal from "./Reveal";
+import { stepIndex } from "./views";
 
 export type RmNode = { id: string; label: string; layer: "why" | "what" | "how" | "resource"; start?: number | null; end?: number | null; description?: string; evidence_ids?: string[]; flags?: string[] };
 export type ProvStep = { id: string; card: { eid: string; name: string; selected: boolean } | null; line: string | null; line_name: string | null; structure: string; detail: string;
@@ -104,17 +105,16 @@ export default function RoadmapView({ data, v2, selection, cards, serverOk }: { 
   return (
     <section>
       <Reveal>
-        <div className="flex items-center gap-4"><p className="label">04 / 04 · Roadmap</p><span className="h-px w-16 bg-hairline" aria-hidden="true" /></div>
+        <div className="flex items-center gap-4"><p className="label">{stepIndex("roadmap")} · Roadmap</p><span className="h-px w-16 bg-hairline" aria-hidden="true" /></div>
       </Reveal>
       <Reveal delay={80}>
-        <h1 className="display mt-6 text-[clamp(1.8rem,4.4vw,3rem)] leading-[1.15]">Now the agent chooses the opportunities and writes the roadmap.</h1>
+        <h1 className="display mt-6 text-[clamp(1.8rem,4.4vw,3rem)] leading-[1.15]">The selected cards, and the roadmap written from them.</h1>
       </Reveal>
       <Reveal delay={160}>
         <p className="mt-5 max-w-2xl text-[0.95rem] leading-[1.85] text-body">
-          Every opportunity in the documents became a card. Three models then debated each card on three questions a roadmapping workshop asks
-          (Phaal &amp; Palmer, 2010): why should the company go for it, where is it now, and can it get there. You decide which answer should lead.
-          The generator reads the ten cards that come out on top, plus the landscape, and writes the roadmap from them — with the same instructions,
-          output schema and model as a generator that has no knowledge base at all.
+          The debate gave every card three scores: why go, where we are, can we get there. You decide which answer should lead; the ten cards
+          that come out on top under that stance are listed below. The generator reads those ten cards plus the landscape and writes the roadmap
+          from them — with the same instructions, output schema and model as a generator that has no knowledge base at all.
         </p>
       </Reveal>
 

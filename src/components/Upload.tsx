@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Reveal from "./Reveal";
+import { stepIndex } from "./views";
 import { listMyRuns, type Meta, type MyRun } from "@/lib/data";
 
 const ACCEPT = ".pdf,.html,.htm,.md,.markdown,.txt,.docx";
@@ -44,7 +45,7 @@ export default function Upload({ meta, serverOk, busy, busyText, error, onPrepar
   return (
     <section>
       <Reveal>
-        <div className="flex items-center gap-4"><p className="label">01 / 04 · Documents</p><span className="h-px w-16 bg-hairline" aria-hidden="true" /></div>
+        <div className="flex items-center gap-4"><p className="label">{stepIndex("upload")} · Documents</p><span className="h-px w-16 bg-hairline" aria-hidden="true" /></div>
       </Reveal>
       <Reveal delay={80}>
         <h1 className="display mt-6 text-[clamp(1.8rem,4.4vw,3rem)] leading-[1.15]">Give the agent a company&rsquo;s documents.</h1>

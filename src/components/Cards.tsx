@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Reveal from "./Reveal";
+import { stepIndex } from "./views";
 import type { CardV2 } from "./RoadmapView";
 
 export type Candidates = {
@@ -37,7 +38,7 @@ export default function Cards({ cards, candidates, onNext }: { cards: CardV2[]; 
   return (
     <section>
       <Reveal>
-        <div className="flex items-center gap-4"><p className="label">03 / 04 · Opportunity cards</p><span className="h-px w-16 bg-hairline" aria-hidden="true" /></div>
+        <div className="flex items-center gap-4"><p className="label">{stepIndex("cards")} · Opportunity cards</p><span className="h-px w-16 bg-hairline" aria-hidden="true" /></div>
       </Reveal>
       <Reveal delay={80}>
         <h1 className="display mt-6 text-[clamp(1.8rem,4.4vw,3rem)] leading-[1.15]">From opportunity candidates to one card per opportunity.</h1>
@@ -100,7 +101,7 @@ export default function Cards({ cards, candidates, onNext }: { cards: CardV2[]; 
       {/* 다음 단계 버튼: 카드 목록 바로 위 오른쪽 */}
       <div className="mt-5 flex items-center justify-end gap-4">
         <span className="h-px w-10 bg-hairline" aria-hidden="true" />
-        <button className="btn" data-primary="true" onClick={onNext}>Let the models choose and the agent build the roadmap →</button>
+        <button className="btn" data-primary="true" onClick={onNext}>Watch the agents debate and score the cards →</button>
       </div>
       <div className="mt-4 grid gap-5 md:grid-cols-2">
         {sorted.map((c, i) => {

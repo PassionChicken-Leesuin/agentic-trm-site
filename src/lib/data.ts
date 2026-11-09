@@ -64,6 +64,11 @@ export function resultLink(run: string): string {
   return (typeof window !== "undefined" ? window.location.origin : "") + `/?job=${run}`;
 }
 
+/** debate.json — 세 에이전트의 카드별 토론 (1라운드 점수·이유 → 2라운드 답변·최종 점수). 서버 작업은 토론 중에도 갱신된다. */
+export type DebateSide = { q1: number; q2: number; q3: number; reasons: Record<string, string>; contested?: string | null; replies?: string[]; changed?: boolean };
+export type DebateRecord = { eid: string; name: string; models: Record<string, { r1: DebateSide; final: DebateSide }>; profile: { q1: number; q2: number; q3: number } };
+export type Debate = { total: number; done: boolean; models: string[]; records: DebateRecord[] };
+
 export const API = process.env.NEXT_PUBLIC_API ?? "";
 export const DEFAULT_RUN = process.env.NEXT_PUBLIC_RUN ?? "ionq";
 export const STATIC_REF: RunRef = { kind: "static", run: DEFAULT_RUN };

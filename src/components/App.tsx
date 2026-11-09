@@ -174,7 +174,7 @@ export default function App() {
                   <p className="mt-1">Save this link to come back later; you can close this page while it runs. Anyone with the link can open these results, so share it only with people who should see them.</p>
                 </div>
               )}
-              <Build meta={meta} source={source} onDone={onBuildDone} />
+              <Build meta={meta} source={source} onDone={onBuildDone} live={ref.kind === "server" && job?.status !== "done" && job?.status !== "error"} />
             </>
           )}
           {stage === "build" && !source && (

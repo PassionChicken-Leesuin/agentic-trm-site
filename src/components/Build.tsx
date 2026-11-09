@@ -19,7 +19,8 @@ const PANELS: { id: "k1" | "k2" | "k3" | "k4" | "k5"; dom: string; k: string; fn
 /**
  * 다섯 구조가 자라는 화면. 엔진이 그리고, React 는 그릇·조작부·진행만 맡는다.
  */
-export default function Build({ meta, source, onDone }: { meta: Meta; source: Source; onDone: () => void }) {
+/** live: 서버 작업이 아직 처리 중 (결과가 다 저장되지 않음). 이때는 건너뛰기·속도 조절이 의미가 없어 끈다. */
+export default function Build({ meta, source, onDone, live = false }: { meta: Meta; source: Source; onDone: () => void; live?: boolean }) {
   const root = useRef<HTMLDivElement>(null);
   const eng = useRef<StructuresEngine | null>(null);
   const stopRef = useRef<(() => void) | null>(null);
@@ -128,10 +129,12 @@ export default function Build({ meta, source, onDone }: { meta: Meta; source: So
             ? <button className="btn" onClick={pause}>Pause</button>
             : <button className="btn" data-primary={!started ? "true" : undefined} onClick={resume} disabled={finished}>{started ? "Resume" : "Start"}</button>}
           <button className="btn" onClick={restart}>Restart</button>
-          <button className="btn" onClick={() => void skip()} disabled={finished || skipping}>{skipping ? "Skipping…" : "Skip to end"}</button>
-          <label className="label flex items-center gap-2">speed
-            <input type="range" min={1} max={80} value={speed} onChange={(e) => { setSpeed(+e.target.value); }} onMouseUp={() => eng.current && running && start(eng.current, eng.current.lastSeq)} className="w-24 accent-[var(--ink)]" />
-          </label>
+          <span className="flex items-center gap-2" title={live ? "Available once the run has finished and all results are saved" : undefined}>
+            <button className="btn" onClick={() => void skip()} disabled={live || finished || skipping}>{skipping ? "Skipping…" : "Skip to end"}</button>
+            <label className={`label flex items-center gap-2 ${live ? "opacity-40" : ""}`}>speed
+              <input type="range" min={1} max={80} value={speed} disabled={live} onChange={(e) => { setSpeed(+e.target.value); }} onMouseUp={() => eng.current && running && start(eng.current, eng.current.lastSeq)} className="w-24 accent-[var(--ink)] disabled:cursor-not-allowed" />
+            </label>
+          </span>
         </div>
       </div>
       <div className="chips mb-2"><span className="label mr-2" style={{ color: "var(--k0)" }}>Glossary</span><span id="chips" className="chips" /></div>

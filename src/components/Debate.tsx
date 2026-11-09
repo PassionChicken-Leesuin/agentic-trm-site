@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Reveal from "./Reveal";
+import AgentAvatar from "./AgentAvatar";
 import { stepIndex } from "./views";
 import type { Debate as DebateData, DebateRecord } from "@/lib/data";
 import type { CardV2, Selection } from "./RoadmapView";
@@ -30,7 +31,12 @@ export default function Debate({ cards, debate, selection, live, waiting, onNext
   cards: CardV2[]; debate: DebateData | null; selection: Selection | null; live: boolean; waiting?: string | null; onNext: () => void;
 }) {
   const records = useMemo(() => debate?.records ?? [], [debate]);
-  const models = useMemo(() => debate?.models?.length ? debate.models : ["gpt-4.1", "claude-sonnet-4.6", "gemini-2.5-flash"], [debate]);
+  // 자리 순서는 항상 A(GPT) 왼쪽 · B(Claude) 오른쪽 · C(Gemini) 아래. 기록에 없는 모델은 뒤에 붙는다.
+  const models = useMemo(() => {
+    const order = ["gpt-4.1", "claude-sonnet-4.6", "gemini-2.5-flash"];
+    const ms = debate?.models?.length ? [...debate.models] : [...order];
+    return ms.sort((x, y) => (order.indexOf(x) < 0 ? 99 : order.indexOf(x)) - (order.indexOf(y) < 0 ? 99 : order.indexOf(y)));
+  }, [debate]);
   const cardOf = useMemo(() => new Map(cards.map((c) => [c.eid, c])), [cards]);
   const selected = useMemo(() => new Set(selection?.stances.balanced?.selected ?? []), [selection]);
   const rankOf = useMemo(() => { const m = new Map<string, number>(); (selection?.stances.balanced?.order ?? []).forEach((e, i) => m.set(e, i + 1)); return m; }, [selection]);
@@ -114,7 +120,10 @@ export default function Debate({ cards, debate, selection, live, waiting, onNext
                 const view = shownStep >= 3 ? side?.final : side?.r1;
                 return (
                   <div className={`relative text-xs ${extra}`}>
-                    <p className="label">{AGENT_LABEL[m] ?? m}</p>
+                    <div className="flex items-center gap-3">
+                      <AgentAvatar variant={models.indexOf(m)} active={!!side && shownStep >= 1} thinking={!!side && shownStep === 0} />
+                      <p className="label">{AGENT_LABEL[m] ?? m}</p>
+                    </div>
                     {!side && <p className="mt-1 text-muted">—</p>}
                     {side && shownStep === 0 && <p className="mt-1 text-muted">reading the card…</p>}
                     {side && shownStep >= 1 && view && (

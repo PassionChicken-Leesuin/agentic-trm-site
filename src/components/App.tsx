@@ -79,7 +79,9 @@ export default function App() {
   }, [go]);
 
   useEffect(() => {
-    loadMeta(STATIC_REF).then(setMeta).catch(() => setMeta(null));
+    // ?job= 링크로 들어온 경우 IonQ 데모 정보를 읽지 않는다: 늦게 도착하면 작업 정보(회사·문서 수)를 덮어쓰기 때문
+    const viaJob = typeof window !== "undefined" && !!new URLSearchParams(window.location.search).get("job") && !!API;
+    if (!viaJob) loadMeta(STATIC_REF).then((m) => { if (jobRef.current === null) setMeta(m); }).catch(() => setMeta(null));
     serverAvailable().then(setServerOk);
     // 준비된 run 의 산출물과 깊은 링크 ?stage=build (준비된 문서로 바로 시작) — 다음 틱에서, 렌더 중 갱신이 아니게
     // ?job=<run> (서버 모드): 이미 만든 업로드 작업을 다시 연다 — 시연·점검용

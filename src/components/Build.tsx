@@ -85,13 +85,35 @@ export default function Build({ meta, source, onDone }: { meta: Meta; source: So
   const pause = () => { stopRef.current?.(); setRunning(false); };
   const resume = () => { if (eng.current) start(eng.current, eng.current.lastSeq); };
   const restart = () => { if (eng.current) { eng.current.reset(); eng.current.setMeta(meta); setStarted(false); start(eng.current, 0); } };
-  const skip = () => {
+  const [skipping, setSkipping] = useState(false);
+  const skip = async () => {
     if (!eng.current) return;
     stopRef.current?.();
+    const e = eng.current;
     if (source.kind === "static") {
-      const e = eng.current; e.beams = false;
+      e.beams = false;
       source.events.filter((ev) => ev.seq > e.lastSeq).forEach((ev) => e.handle(ev));
       e.beams = true; e.relayout(); setRunning(false); setFinished(true);
+      return;
+    }
+    // 서버 작업: 지금까지 기록된 사건을 한꺼번에 받아 바로 적용한다. 작업이 끝났으면 완료, 아직 진행 중이면 그 지점부터 실시간으로 이어 간다.
+    setSkipping(true);
+    try {
+      e.beams = false;
+      for (;;) {
+        const r = await fetch(`${API}/api/v2/runs/${source.run}/events?since=${e.lastSeq}&limit=20000`, { cache: "no-store" });
+        const evs: KbEvent[] = r.ok ? await r.json() : [];
+        if (!evs.length) break;
+        const before = e.lastSeq;
+        evs.forEach((ev) => e.handle(ev));
+        if (e.lastSeq <= before) break;      // 진행이 없으면 멈춤 (안전장치)
+      }
+      e.beams = true; e.relayout();
+      const st = await getJob(source.run);
+      if (!st || st.status === "done" || st.status === "error") { setRunning(false); setFinished(true); }
+      else start(e, e.lastSeq);
+    } finally {
+      e.beams = true; setSkipping(false);
     }
   };
 
@@ -106,7 +128,7 @@ export default function Build({ meta, source, onDone }: { meta: Meta; source: So
             ? <button className="btn" onClick={pause}>Pause</button>
             : <button className="btn" data-primary={!started ? "true" : undefined} onClick={resume} disabled={finished}>{started ? "Resume" : "Start"}</button>}
           <button className="btn" onClick={restart}>Restart</button>
-          {source.kind === "static" && <button className="btn" onClick={skip} disabled={finished}>Skip to end</button>}
+          <button className="btn" onClick={() => void skip()} disabled={finished || skipping}>{skipping ? "Skipping…" : "Skip to end"}</button>
           <label className="label flex items-center gap-2">speed
             <input type="range" min={1} max={80} value={speed} onChange={(e) => { setSpeed(+e.target.value); }} onMouseUp={() => eng.current && running && start(eng.current, eng.current.lastSeq)} className="w-24 accent-[var(--ink)]" />
           </label>

@@ -80,7 +80,7 @@ export default function Upload({ meta, serverOk, busy, busyText, error, onPrepar
                 <p className="mt-1 text-xs text-muted">Up to {MAX_FILES} documents per run. Dates are read from file names (YYYY-MM-DD) or the text; mark internal documents so they are shown as such.</p>
               </>
             ) : (
-              <p className="mt-4 text-xs text-muted">Available when the site runs with its agent server (NEXT_PUBLIC_API). This copy replays a recorded session instead.</p>
+              <p className="mt-4 text-xs text-muted">Uploading is unavailable right now. Uploaded documents are processed on Suin Lee's personal lab computer, and it appears to be off. The recorded IonQ session on this site still works; please try uploading again later.</p>
             )}
             {files.length > 0 && (
               <ul className="mt-4 max-h-56 overflow-auto border-t border-hairline-soft text-xs">

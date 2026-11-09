@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Reveal from "./Reveal";
-import type { Meta } from "@/lib/data";
+import { listMyRuns, type Meta, type MyRun } from "@/lib/data";
 
 const ACCEPT = ".pdf,.html,.htm,.md,.markdown,.txt,.docx";
 const MAX_FILES = 500;
@@ -19,6 +19,8 @@ export default function Upload({ meta, serverOk, busy, busyText, error, onPrepar
   const [files, setFiles] = useState<File[]>([]);
   const [company, setCompany] = useState("");
   const [internal, setInternal] = useState<Set<string>>(new Set());
+  const [myRuns, setMyRuns] = useState<MyRun[]>([]);
+  useEffect(() => { setMyRuns(listMyRuns()); }, []);
   const byType = useMemo(() => {
     const m = new Map<string, number>();
     meta?.documents.forEach((d) => m.set(d.is_synthetic ? "internal (synthetic)" : d.source_type, (m.get(d.is_synthetic ? "internal (synthetic)" : d.source_type) || 0) + 1));
@@ -96,6 +98,16 @@ export default function Upload({ meta, serverOk, busy, busyText, error, onPrepar
               </ul>
             )}
             {error && <p className="mt-3 text-xs" style={{ color: "var(--why)" }}>{error}</p>}
+            {myRuns.length > 0 && (
+              <div className="mt-4 text-xs text-muted">
+                <p className="label">Your earlier runs in this browser</p>
+                <ul className="mt-1">
+                  {myRuns.slice(0, 5).map((r) => (
+                    <li key={r.run} className="py-0.5"><a className="underline underline-offset-2 hover:text-ink" href={`/?job=${r.run}`}>{r.company}</a> · {r.docs} documents · {new Date(r.at).toLocaleString()}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <div className="mt-6 flex flex-wrap items-center gap-3">
               <label className="btn" aria-disabled={!serverOk || busy}>
                 Choose files

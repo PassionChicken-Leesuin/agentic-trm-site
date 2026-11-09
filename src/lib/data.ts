@@ -24,7 +24,7 @@ export type RunRef = { kind: "static"; run: string } | { kind: "server"; run: st
 
 export type JobState = {
   run: string;
-  status: "queued" | "running" | "done" | "error";
+  status: "receiving" | "queued" | "running" | "done" | "error";
   stage: string;
   message: string;
   progress: { done: number; total: number };
@@ -37,7 +37,32 @@ export type JobState = {
   seconds?: number;
   documents?: (Doc & { original_name: string; n_chars: number })[];
   skipped?: { file: string; reason: string }[];
+  queue_position?: number | null;                                   // 대기 줄 순번 (1부터), 진행 중이면 null
+  load?: { running: number; queued: number; max_parallel: number };
+  estimate_usd?: number;
 };
+
+/**
+ * 결과 링크가 곧 열쇠: 작업 이름(up_<무작위>)을 아는 사람만 결과를 연다. 서버 목록에는 업로드 작업이 나오지 않는다.
+ * 이 브라우저에서 만든 작업은 localStorage 에 적어 두어 업로드 화면에서 다시 열 수 있게 한다 (다른 사람에게는 보이지 않음).
+ */
+export type MyRun = { run: string; company: string; docs: number; at: string };
+const MY_RUNS_KEY = "trm.myRuns";
+
+export function listMyRuns(): MyRun[] {
+  if (typeof window === "undefined") return [];
+  try { return JSON.parse(window.localStorage.getItem(MY_RUNS_KEY) || "[]") as MyRun[]; } catch { return []; }
+}
+
+export function rememberRun(r: MyRun): void {
+  if (typeof window === "undefined") return;
+  const rest = listMyRuns().filter((x) => x.run !== r.run);
+  try { window.localStorage.setItem(MY_RUNS_KEY, JSON.stringify([r, ...rest].slice(0, 20))); } catch { /* 저장 불가(사생활 모드 등)면 생략 */ }
+}
+
+export function resultLink(run: string): string {
+  return (typeof window !== "undefined" ? window.location.origin : "") + `/?job=${run}`;
+}
 
 export const API = process.env.NEXT_PUBLIC_API ?? "";
 export const DEFAULT_RUN = process.env.NEXT_PUBLIC_RUN ?? "ionq";

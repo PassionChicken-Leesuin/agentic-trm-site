@@ -11,7 +11,7 @@ import Cards from "./Cards";
 import RoadmapView, { type Roadmaps, type Selection, type CardV2 } from "./RoadmapView";
 import type { Candidates } from "./Cards";
 import { isStage, type Stage } from "./views";
-import { API, STATIC_REF, createJob, getJob, loadEvents, loadJSON, loadMeta, serverAvailable, waitJob, type JobState, type Meta, type RunRef } from "@/lib/data";
+import { API, STATIC_REF, createJob, getJob, loadEvents, loadJSON, loadMeta, rememberRun, resultLink, serverAvailable, waitJob, type JobState, type Meta, type RunRef } from "@/lib/data";
 
 /** 깊은 링크: ?stage=upload|build|cards|roadmap (시연·점검용). build 는 아래 효과에서 준비된 문서로 시작한다. */
 function stageFromUrl(): Stage {
@@ -93,6 +93,21 @@ export default function App() {
     return () => clearTimeout(t);
   }, [startPrepared, loadOutputs, openJob]);
 
+  // 서버 작업을 보는 동안 상태(대기 순번·단계)를 주기적으로 다시 읽는다
+  useEffect(() => {
+    if (ref.kind !== "server") return;
+    const run = ref.run;
+    let stop = false;
+    const tick = async () => {
+      const s = await getJob(run);
+      if (stop) return;
+      if (s) setJob(s);
+      if (!s || (s.status !== "done" && s.status !== "error")) setTimeout(tick, 4000);
+    };
+    const t = setTimeout(tick, 4000);
+    return () => { stop = true; clearTimeout(t); };
+  }, [ref]);
+
   useEffect(() => {
     const onPop = (e: PopStateEvent) => { const s = (e.state as { stage?: unknown } | null)?.stage; setStage(isStage(s) ? s : "gate"); window.scrollTo({ top: 0, behavior: "auto" }); };
     window.addEventListener("popstate", onPop);
@@ -104,6 +119,8 @@ export default function App() {
     setUploading(true); setUploadError(null);
     try {
       const state = await createJob(company, files, { internal, onProgress: (n, t) => setUploadMsg(n < t ? `Uploading ${n} / ${t} files…` : `Converting ${t} files…`) });
+      rememberRun({ run: state.run, company, docs: state.documents?.length ?? files.length, at: new Date().toISOString() });
+      window.history.replaceState(null, "", `/?job=${state.run}`);   // 주소창 자체가 결과 링크가 되게
       await openJob(state.run);
     } catch (e) {
       setUploadError(e instanceof Error ? e.message : String(e));
@@ -138,10 +155,22 @@ export default function App() {
           {stage === "build" && meta && source && (
             <>
               {ref.kind === "server" && job && (
-                <p className="mb-3 text-xs text-muted">
-                  <span className="label mr-2">{company}</span>{job.documents?.length ?? docCount} uploaded documents{job.skipped?.length ? ` (${job.skipped.length} skipped: ${job.skipped.slice(0, 3).map((s) => s.file).join(", ")}${job.skipped.length > 3 ? ", …" : ""})` : ""} · run <a className="underline underline-offset-2 hover:text-ink" href={`/?job=${ref.run}`}>{ref.run}</a> (reopen this link later)
-                  {waiting && <span className="ml-3 text-ink"><span className="spin mr-2" aria-hidden="true" />{waiting}</span>}
-                </p>
+                <div className="mb-4 border border-hairline px-4 py-3 text-xs text-muted">
+                  <p>
+                    <span className="label mr-2">{company}</span>{job.documents?.length ?? docCount} uploaded document{(job.documents?.length ?? docCount) === 1 ? "" : "s"}{job.skipped?.length ? ` (${job.skipped.length} skipped: ${job.skipped.slice(0, 3).map((s) => s.file).join(", ")}${job.skipped.length > 3 ? ", …" : ""})` : ""}
+                    {waiting && <span className="ml-3 text-ink"><span className="spin mr-2" aria-hidden="true" />{waiting}</span>}
+                  </p>
+                  {job.status === "queued" && (
+                    <p className="mt-2 text-ink"><span className="spin mr-2" aria-hidden="true" />
+                      Waiting in line{job.queue_position ? `: ${job.queue_position === 1 ? "you are next" : `${job.queue_position - 1} run(s) ahead of you`}` : ""}. Up to {job.load?.max_parallel ?? 3} runs are processed at a time; yours starts automatically.
+                    </p>
+                  )}
+                  <p className="mt-2">
+                    Your result link: <a className="text-ink underline underline-offset-2" href={`/?job=${ref.run}`}>{resultLink(ref.run)}</a>
+                    <button className="btn-ghost ml-2 text-xs" onClick={() => navigator.clipboard?.writeText(resultLink(ref.run))}>Copy</button>
+                  </p>
+                  <p className="mt-1">Save this link to come back later; you can close this page while it runs. Anyone with the link can open these results, so share it only with people who should see them.</p>
+                </div>
               )}
               <Build meta={meta} source={source} onDone={onBuildDone} />
             </>
